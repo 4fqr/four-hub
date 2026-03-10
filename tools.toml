@@ -1,0 +1,94 @@
+# ─── Four-Hub · tools.toml ────────────────────────────────────────────────────
+# Custom / extra tool definitions. Each [[tool]] block defines one tool.
+# These are merged with the built-in registry at startup.
+#
+# Field reference:
+#   name        — unique identifier (lower-case, hyphens ok)
+#   display     — human-readable name shown in the TUI
+#   category    — one of: Recon, Web, Exploitation, Post-Exploitation,
+#                          Password, Wireless, Network, Reporting, Custom
+#   binary      — executable name (looked up via $PATH)
+#   args        — argument list; "{target}" is replaced with the active target
+#   description — shown in the tool detail panel
+#   timeout_secs — kill tool after this many seconds (0 = no limit)
+#   tags        — list of searchable keywords
+
+[[tool]]
+name         = "rustscan"
+display      = "RustScan"
+category     = "Recon"
+binary       = "rustscan"
+args         = ["-a", "{target}", "--ulimit", "5000", "--", "-sV", "-sC"]
+description  = "Blazing-fast Rust port scanner that feeds into nmap for service detection."
+timeout_secs = 300
+tags         = ["scan", "ports", "fast", "nmap"]
+
+[[tool]]
+name         = "feroxbuster"
+display      = "Feroxbuster"
+category     = "Web"
+binary       = "feroxbuster"
+args         = ["-u", "http://{target}", "-w", "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", "--depth", "3", "--quiet"]
+description  = "Fast, recursive content-discovery tool written in Rust."
+timeout_secs = 600
+tags         = ["web", "dirs", "fuzz", "bruteforce"]
+
+[[tool]]
+name         = "subfinder"
+display      = "Subfinder"
+category     = "Recon"
+binary       = "subfinder"
+args         = ["-d", "{target}", "-all", "-silent"]
+description  = "Passive subdomain enumeration using multiple OSINT sources."
+timeout_secs = 120
+tags         = ["subdomain", "osint", "recon", "dns"]
+
+[[tool]]
+name         = "amass"
+display      = "Amass"
+category     = "Recon"
+binary       = "amass"
+args         = ["enum", "-passive", "-d", "{target}"]
+description  = "In-depth attack-surface mapping and asset-discovery tool."
+timeout_secs = 600
+tags         = ["subdomain", "osint", "recon", "attack surface"]
+
+[[tool]]
+name         = "whatweb"
+display      = "WhatWeb"
+category     = "Web"
+binary       = "whatweb"
+args         = ["-a", "3", "--colour", "never", "http://{target}"]
+description  = "Web technology fingerprinting tool (WordPress, Joomla, frameworks…)."
+timeout_secs = 60
+tags         = ["fingerprint", "cms", "web", "detect"]
+
+[[tool]]
+name         = "commix"
+display      = "Commix"
+category     = "Web"
+binary       = "commix"
+args         = ["--url", "http://{target}", "--all", "--batch"]
+description  = "Automated command-injection and exploitation tool."
+timeout_secs = 300
+tags         = ["injection", "cmd", "exploit", "rce"]
+
+[[tool]]
+name         = "sslscan"
+display      = "SSLScan"
+category     = "Web"
+binary       = "sslscan"
+args         = ["--show-certificate", "--no-colour", "{target}"]
+description  = "TLS/SSL cipher and certificate scanner — detects BEAST, POODLE, Heartbleed."
+timeout_secs = 60
+tags         = ["ssl", "tls", "certificate", "web"]
+
+[[tool]]
+name         = "responder"
+display      = "Responder"
+category     = "Network"
+binary       = "responder"
+args         = ["-I", "eth0", "-rdwv"]
+description  = "LLMNR/NBT-NS/mDNS poisoner for credential capture on internal networks."
+timeout_secs = 0
+tags         = ["poison", "llmnr", "credential", "internal"]

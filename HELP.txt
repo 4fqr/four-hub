@@ -1,0 +1,72 @@
+FOUR-HUB v1.0.0 — The Ultimate Penetration-Testing Command Centre
+═══════════════════════════════════════════════════════════════════
+
+USAGE
+  four-hub [OPTIONS]
+
+OPTIONS
+  -c, --config <PATH>          Path to config.toml  (default: ~/.config/four-hub/config.toml)
+  -p, --passphrase-env <VAR>   Read vault passphrase from environment variable <VAR>
+                                instead of prompting interactively
+  -V, --version                Print version and exit
+  -h, --help                   Print this help and exit
+
+TUI KEY BINDINGS (global)
+  Tab / Shift-Tab              Cycle views forward / backward
+  1                            Switch to Dashboard view
+  2                            Switch to Tool Launcher view
+  3                            Switch to Workspace view
+  4                            Switch to Inspector view
+  5                            Switch to Terminal view
+  q / Ctrl-C                   Quit (anti-forensics wipe runs on exit)
+  Esc                          Close popup / deselect
+
+DASHBOARD VIEW
+  Auto-refreshing stats: running jobs, recent findings, severity breakdown
+
+TOOL LAUNCHER (key 2)
+  ↑ / ↓                        Navigate tool list
+  ←  / →                       Switch between category sidebar and tool list
+  Enter                         Launch selected tool against workspace target
+  Tab                           Cycle argument fields
+  /                             Search tools by name
+
+WORKSPACE VIEW (key 3)
+  ↑ / ↓                        Navigate rows
+  Tab                           Cycle panel (Hosts → Ports → Findings)
+  Enter                         Inspect selected finding
+  d                             Delete selected row
+
+INSPECTOR VIEW (key 4)
+  ↑ / ↓ / Page-Up / Page-Down  Scroll evidence / description
+  e                             Export finding to HTML / JSON report
+
+TERMINAL VIEW (key 5)
+  Type freely                   Execute arbitrary shell commands
+  ↑ / ↓                        History navigation
+  Enter                         Run command
+  Ctrl-L                        Clear output
+
+REPORTING
+  Reports are written to ~/four-hub-reports/ by default.
+  HTML and JSON formats are produced simultaneously.
+
+STEALTH NOTES
+  • Process appears as "kworker/2:1" in ps/top output.
+  • Sensitive memory regions are mlocked (never swapped).
+  • On exit, shell history and /tmp/fh_* artefacts are overwritten + deleted.
+  • Use --passphrase-env FH_PASS to avoid passphrase appearing in shell scrollback.
+
+CONFIGURATION
+  A commented default config.toml is generated on first run at:
+    ~/.config/four-hub/config.toml
+
+PLUGIN API
+  Drop a Python (.py) file into the plugins_dir (default: ~/.local/share/four-hub/plugins/).
+  Any callable named on_new_finding(finding: dict) or on_tool_finished(job_id: str, code: int)
+  will be invoked automatically.
+
+EXAMPLES
+  four-hub                                     # Interactive TUI, prompt for passphrase
+  FH_PASS=s3cr3t four-hub -p FH_PASS          # Passphrase from env (automation)
+  four-hub --config /etc/four-hub/config.toml  # Custom config path

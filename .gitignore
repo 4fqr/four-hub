@@ -1,0 +1,31 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Cargo lock for library crates (keep for binaries)
+# Cargo.lock   # keeping it for reproducibility
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Editor backups
+*~
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Log files
+*.log
+logs/
+
+# Distribution
+dist/
+
+# Generated reports
+four-hub-report-*/
