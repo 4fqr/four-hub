@@ -159,14 +159,18 @@ fn render_statusbar(f: &mut Frame, area: Rect, state: &AppState) {
 
 fn render_helpbar(f: &mut Frame, area: Rect, _state: &AppState) {
     let spans = vec![
-        Span::styled("[q]", theme::style_keybind()), Span::raw("Quit  "),
-        Span::styled("[r]", theme::style_keybind()), Span::raw("Run  "),
-        Span::styled("[x]", theme::style_keybind()), Span::raw("Kill  "),
-        Span::styled("[^e]", theme::style_keybind()), Span::raw("Export  "),
-        Span::styled("[^f]", theme::style_keybind()), Span::raw("Search  "),
-        Span::styled("[Tab]", theme::style_keybind()), Span::raw("Panel  "),
+        Span::styled("[q]",     theme::style_keybind()), Span::raw("Quit  "),
+        Span::styled("[1-5]",   theme::style_keybind()), Span::raw("Views  "),
+        Span::styled("[r]",     theme::style_keybind()), Span::raw("Run  "),
+        Span::styled("[t]",     theme::style_keybind()), Span::raw("Target  "),
+        Span::styled("[x]",     theme::style_keybind()), Span::raw("Kill  "),
+        Span::styled("[i]",     theme::style_keybind()), Span::raw("Inspect  "),
+        Span::styled("[d]",     theme::style_keybind()), Span::raw("Delete  "),
+        Span::styled("[</> ]",  theme::style_keybind()), Span::raw("Category  "),
+        Span::styled("[^e]",    theme::style_keybind()), Span::raw("Export  "),
+        Span::styled("[?]",     theme::style_keybind()), Span::raw("Help  "),
         Span::styled("[Enter]", theme::style_keybind()), Span::raw("Select  "),
-        Span::styled("[Esc]", theme::style_keybind()), Span::raw("Back "),
+        Span::styled("[Esc]",   theme::style_keybind()), Span::raw("Back"),
     ];
     let line = Line::from(spans);
     let para = Paragraph::new(line).style(theme::style_dim());
@@ -287,15 +291,20 @@ fn render_popup(f: &mut Frame, area: Rect, popup: &PopupKind, _state: &AppState)
         }
 
         PopupKind::TargetInput { query } => {
-            let rect = centre_rect(52, 5, area);
+            let rect = centre_rect(58, 5, area);
             f.render_widget(Clear, rect);
-            let para = Paragraph::new(query.as_str())
+            // Append a blinking-block cursor character so the user can see where they're typing.
+            let display = format!("{query}█");
+            let para = Paragraph::new(display.as_str())
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
                         .border_set(theme::BORDER_SET)
                         .border_style(theme::style_border_focused())
-                        .title(Span::styled(" Target ", theme::style_title())),
+                        .title(Span::styled(
+                            " ◆ SET TARGET  [Enter] Confirm   [Esc] Cancel   [Del] Clear ",
+                            theme::style_title(),
+                        )),
                 )
                 .style(theme::style_popup());
             f.render_widget(para, rect);

@@ -116,6 +116,9 @@ pub struct AppState {
 
     // ── Drag split state ──────────────────────────────────────────────────────
     pub split_x:       u16,
+
+    // ── Pending terminal command (set by key handler, consumed by run loop) ───
+    pub pending_terminal_cmd: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -188,8 +191,9 @@ impl AppState {
             inspector_scroll:  0,
             search_query:      String::new(),
             search_active:     false,
-            scroll_offset:     0,
-            split_x:           40,
+            scroll_offset:          0,
+            split_x:               40,
+            pending_terminal_cmd:  None,
         }
     }
 
@@ -390,17 +394,20 @@ impl AppState {
         self.scroll_offset = self.scroll_offset.saturating_add((self.term_height / 2) as usize);
     }
 
-    pub fn scroll_up(&mut self) { if self.scroll_offset > 0 { self.scroll_offset -= 1; } }
-    pub fn scroll_down(&mut self) { self.scroll_offset += 1; }
+    pub fn scroll_up(&mut self)     { if self.scroll_offset > 0 { self.scroll_offset -= 1; } }
+    pub fn scroll_down(&mut self)   { self.scroll_offset += 1; }
+    pub fn scroll_top(&mut self)    { self.scroll_offset = 0; }
+    pub fn scroll_bottom(&mut self) { self.scroll_offset = usize::MAX / 2; }
 
     // ── Click / drag ─────────────────────────────────────────────────────────
 
     pub fn click(&mut self, col: u16, row: u16) {
-        // Map clicks to view tab bar (row 1, columns proportional).
-        if row <= 2 {
-            let w = self.term_width / 5;
-            let idx = (col / w.max(1)).min(4);
-            self.active_view = match idx {
+        const STATUSBAR_H: u16 = 3;
+
+        // ── Tab bar ───────────────────────────────────────────────────────────
+        if row < STATUSBAR_H {
+            let w = (self.term_width / 5).max(1);
+            self.active_view = match (col / w).min(4) {
                 0 => ActiveView::Dashboard,
                 1 => ActiveView::ToolLauncher,
                 2 => ActiveView::Workspace,
@@ -408,6 +415,56 @@ impl AppState {
                 4 => ActiveView::Terminal,
                 _ => self.active_view,
             };
+            return;
+        }
+
+        // ── Content area ──────────────────────────────────────────────────────
+        let content_row = row.saturating_sub(STATUSBAR_H);
+
+        match self.active_view {
+            ActiveView::ToolLauncher => {
+                const CAT_W: u16 = 22;
+                if col < CAT_W {
+                    let item = content_row.saturating_sub(1) as usize;
+                    if item < self.tool_categories.len() {
+                        self.set_category_idx(item);
+                    }
+                } else {
+                    let item = content_row.saturating_sub(1) as usize;
+                    if item < self.tools_in_category.len() {
+                        self.selected_tool = item;
+                    }
+                }
+            }
+            ActiveView::Workspace => {
+                let host_w = (self.term_width * 30 / 100).max(1);
+                if col < host_w {
+                    let item = content_row.saturating_sub(2) as usize;
+                    if item < self.hosts.len() { self.selected_host = Some(item); }
+                } else {
+                    let mid = self.term_height.saturating_sub(STATUSBAR_H) / 2;
+                    if content_row < mid {
+                        let item = content_row.saturating_sub(2) as usize;
+                        if item < self.ports.len() { self.selected_port = Some(item); }
+                    } else {
+                        let item = content_row.saturating_sub(mid + 2) as usize;
+                        if item < self.findings.len() { self.selected_finding = Some(item); }
+                    }
+                }
+            }
+            ActiveView::Dashboard => {
+                let left_w: u16 = 30;
+                if col >= left_w {
+                    let item = content_row.saturating_sub(2) as usize;
+                    if !self.jobs.is_empty() && item < self.jobs.len() {
+                        self.selected_job = Some(item);
+                    }
+                }
+            }
+            ActiveView::Terminal => {
+                self.terminal.focused = true;
+            }
+            _ => {}
         }
     }
 
@@ -441,18 +498,18 @@ impl AppState {
         self.active_view == ActiveView::Terminal && self.terminal.focused
     }
 
-    pub fn terminal_input(&mut self, key: KeyEvent) {
+    pub fn terminal_input(&mut self, key: KeyEvent) -> Option<String> {
         use crossterm::event::KeyCode;
         match key.code {
-            KeyCode::Char(c) => { self.terminal.input.push(c); }
-            KeyCode::Backspace => { self.terminal.input.pop(); }
+            KeyCode::Char(c) => { self.terminal.input.push(c); None }
+            KeyCode::Backspace => { self.terminal.input.pop(); None }
             KeyCode::Enter => {
                 let cmd = self.terminal.input.drain(..).collect::<String>();
-                if !cmd.is_empty() {
-                    self.terminal.history.push(cmd.clone());
-                    self.terminal.hist_pos = self.terminal.history.len();
-                    self.terminal.lines.push(format!("$ {cmd}"));
-                }
+                if cmd.is_empty() { return None; }
+                self.terminal.history.push(cmd.clone());
+                self.terminal.hist_pos = self.terminal.history.len();
+                self.push_terminal_line(format!("$ {cmd}"));
+                Some(cmd)  // caller will execute this
             }
             KeyCode::Up => {
                 if self.terminal.hist_pos > 0 {
@@ -461,18 +518,19 @@ impl AppState {
                         self.terminal.input = h.clone();
                     }
                 }
+                None
             }
             KeyCode::Down => {
-                if self.terminal.hist_pos < self.terminal.history.len().saturating_sub(1) {
-                    self.terminal.hist_pos += 1;
-                    if let Some(h) = self.terminal.history.get(self.terminal.hist_pos) {
-                        self.terminal.input = h.clone();
-                    }
-                } else {
+                self.terminal.hist_pos =
+                    (self.terminal.hist_pos + 1).min(self.terminal.history.len());
+                if self.terminal.hist_pos == self.terminal.history.len() {
                     self.terminal.input.clear();
+                } else if let Some(h) = self.terminal.history.get(self.terminal.hist_pos) {
+                    self.terminal.input = h.clone();
                 }
+                None
             }
-            _ => {}
+            _ => None
         }
     }
 

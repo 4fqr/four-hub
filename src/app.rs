@@ -9,7 +9,7 @@ use crate::{
     plugins::runtime::PluginRuntime,
     tools::{executor::ToolExecutor, registry::ToolRegistry},
     tui::{
-        app_state::{AppState, ActiveView},
+        app_state::{ActiveView, AppState, ConfirmAction, ContextAction, NotifLevel, PopupKind},
         events::{AppEvent, EventStream},
         renderer::Renderer,
     },
@@ -18,7 +18,7 @@ use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyModifiers, MouseEventKind};
 use std::{sync::Arc, time::Duration};
 use tokio::sync::mpsc;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Main application struct – owns all subsystems.
 pub struct Application {
@@ -125,16 +125,26 @@ impl Application {
             match event {
                 AppEvent::Tick => {
                     self.state.update_stats(&self.db).await;
+                    // Execute any pending shell command from the embedded terminal.
+                    if let Some(cmd) = self.state.pending_terminal_cmd.take() {
+                        self.run_shell_cmd(cmd).await;
+                    }
                 }
 
                 AppEvent::ToolOutput { id, line } => {
-                    self.state.append_tool_output(&id, line);
+                    self.state.append_tool_output(&id, line.clone());
+                    // Mirror all tool output to the embedded terminal.
+                    self.state.push_terminal_line(line);
                 }
 
                 AppEvent::ToolFinished { id, exit_code } => {
                     info!(tool_id = %id, exit_code, "tool finished");
                     self.state.mark_tool_finished(&id, exit_code);
                     let _ = self.plugin_rt.fire_tool_finished(&id, exit_code).await;
+                    let badge = if exit_code == 0 { "✓" } else { "✗" };
+                    self.state.push_terminal_line(
+                        format!("{badge} Job {} finished (exit {})", &id[..8.min(id.len())], exit_code)
+                    );
                 }
 
                 AppEvent::NewFinding(finding) => {
@@ -158,43 +168,87 @@ impl Application {
         Ok(())
     }
 
-    // ── event handlers ────────────────────────────────────────────────────────
+    // ── shell execution ───────────────────────────────────────────────────────
 
-    async fn handle_terminal_event(&mut self, ev: Event) -> Result<bool> {
-        match ev {
-            Event::Key(key) => self.handle_key(key).await,
-            Event::Mouse(mouse) => {
-                self.handle_mouse(mouse);
-                Ok(false)
+    async fn run_shell_cmd(&mut self, cmd: String) {
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        use tokio::process::Command;
+
+        let etx = self.event_tx.clone();
+        let child = Command::new("sh")
+            .arg("-c")
+            .arg(&cmd)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true)
+            .spawn();
+
+        match child {
+            Err(e) => { self.state.push_terminal_line(format!("ERROR: {e}")); }
+            Ok(mut child) => {
+                let stdout = child.stdout.take().expect("stdout");
+                let stderr = child.stderr.take().expect("stderr");
+                tokio::spawn(async move {
+                    let mut out = BufReader::new(stdout).lines();
+                    let mut err = BufReader::new(stderr).lines();
+                    loop {
+                        tokio::select! {
+                            line = out.next_line() => match line {
+                                Ok(Some(l)) => { let _ = etx.send(AppEvent::ToolOutput { id: "shell".into(), line: l }); }
+                                _ => break,
+                            },
+                            line = err.next_line() => match line {
+                                Ok(Some(l)) => { let _ = etx.send(AppEvent::ToolOutput { id: "shell".into(), line: format!("[err] {l}") }); }
+                                _ => {}
+                            },
+                        }
+                    }
+                    let _ = child.wait().await;
+                    let _ = etx.send(AppEvent::Notification { level: NotifLevel::Info, message: "shell cmd done".into() });
+                });
             }
-            Event::Resize(w, h) => {
-                self.state.resize(w, h);
-                Ok(false)
-            }
-            _ => Ok(false),
         }
     }
 
-    async fn handle_key(
-        &mut self,
-        key: crossterm::event::KeyEvent,
-    ) -> Result<bool> {
-        // If the embedded terminal widget is focused, forward all input to it.
+    // ── event routing ─────────────────────────────────────────────────────────
+
+    async fn handle_terminal_event(&mut self, ev: Event) -> Result<bool> {
+        match ev {
+            Event::Key(key)    => self.handle_key(key).await,
+            Event::Mouse(m)    => { self.handle_mouse(m); Ok(false) }
+            Event::Resize(w,h) => { self.state.resize(w, h); Ok(false) }
+            _                  => Ok(false),
+        }
+    }
+
+    // ── key handling — popup takes full priority ───────────────────────────────
+
+    async fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> Result<bool> {
+        // 1. Any open popup captures ALL keys.
+        if self.state.popup.is_some() {
+            return self.handle_popup_key(key).await;
+        }
+
+        // 2. Embedded terminal is focused → forward input.
         if self.state.terminal_focused() {
-            if key.code == KeyCode::Esc {
-                self.state.blur_terminal();
-                return Ok(false);
+            match key.code {
+                KeyCode::Esc => self.state.blur_terminal(),
+                _ => {
+                    if let Some(cmd) = self.state.terminal_input(key) {
+                        self.state.pending_terminal_cmd = Some(cmd);
+                    }
+                }
             }
-            self.state.terminal_input(key);
             return Ok(false);
         }
 
+        // 3. Global bindings.
         match (key.modifiers, key.code) {
             // Quit
             (KeyModifiers::CONTROL, KeyCode::Char('c'))
-            | (KeyModifiers::NONE, KeyCode::Char('q')) => return Ok(true),
+            | (KeyModifiers::NONE,  KeyCode::Char('q')) => return Ok(true),
 
-            // View switching (F-keys and digit keys both work)
+            // View switching — F-keys AND digit keys
             (KeyModifiers::NONE, KeyCode::F(1)) | (KeyModifiers::NONE, KeyCode::Char('1')) => {
                 self.state.set_view(ActiveView::Dashboard);
             }
@@ -209,93 +263,192 @@ impl Application {
             }
             (KeyModifiers::NONE, KeyCode::F(5)) | (KeyModifiers::NONE, KeyCode::Char('5')) => {
                 self.state.set_view(ActiveView::Terminal);
+                self.state.terminal.focused = true;
             }
 
             // Navigation
-            (KeyModifiers::NONE, KeyCode::Up | KeyCode::Char('k')) => {
+            (KeyModifiers::NONE, KeyCode::Up)   | (KeyModifiers::NONE, KeyCode::Char('k')) => {
                 self.state.select_prev();
             }
-            (KeyModifiers::NONE, KeyCode::Down | KeyCode::Char('j')) => {
+            (KeyModifiers::NONE, KeyCode::Down) | (KeyModifiers::NONE, KeyCode::Char('j')) => {
                 self.state.select_next();
             }
-            // Launcher category navigation
-            (KeyModifiers::NONE, KeyCode::Left | KeyCode::Char('h')) => {
+            // Left/Right — category nav in Launcher, panel nav elsewhere
+            (KeyModifiers::NONE, KeyCode::Left) => {
                 if self.state.active_view() == ActiveView::ToolLauncher {
                     self.state.prev_category();
                 }
             }
-            (KeyModifiers::NONE, KeyCode::Right | KeyCode::Char('l')) => {
+            (KeyModifiers::NONE, KeyCode::Right) => {
                 if self.state.active_view() == ActiveView::ToolLauncher {
                     self.state.next_category();
                 }
             }
-            (KeyModifiers::NONE, KeyCode::Enter) => {
-                self.handle_enter().await?;
-            }
-            (KeyModifiers::NONE, KeyCode::Esc) => {
-                self.state.dismiss_popup();
-            }
-
-            // Run selected tool
-            (KeyModifiers::NONE, KeyCode::Char('r')) => {
-                self.launch_selected_tool().await?;
+            (KeyModifiers::NONE, KeyCode::Tab) => self.state.next_panel(),
+            (KeyModifiers::SHIFT, KeyCode::BackTab) => {
+                if self.state.active_view() == ActiveView::ToolLauncher {
+                    self.state.prev_category();
+                }
             }
 
-            // Stop selected job
+            (KeyModifiers::NONE, KeyCode::Enter) => self.handle_enter().await?,
+            (KeyModifiers::NONE, KeyCode::Esc)   => self.state.dismiss_popup(),
+
+            // Tool operations
+            (KeyModifiers::NONE, KeyCode::Char('r')) => self.launch_selected_tool().await?,
             (KeyModifiers::NONE, KeyCode::Char('x')) => {
-                self.state.kill_selected_job(&self.executor).await;
+                if let Some(idx) = self.state.selected_job {
+                    if let Some(job) = self.state.jobs.get(idx) {
+                        let id    = job.id.clone();
+                        let short = id[..8.min(id.len())].to_string();
+                        self.state.popup = Some(PopupKind::Confirm {
+                            msg:    format!("Kill job {short}?"),
+                            action: ConfirmAction::KillJob(id),
+                        });
+                    }
+                } else {
+                    self.notify(NotifLevel::Warning, "No job selected".into());
+                }
             }
 
-            // Set target for tool
+            // Set target
             (KeyModifiers::NONE, KeyCode::Char('t')) => {
-                self.state.popup = Some(crate::tui::app_state::PopupKind::TargetInput {
+                self.state.popup = Some(PopupKind::TargetInput {
                     query: self.state.current_target.clone(),
                 });
             }
 
-            // Help popup
-            (KeyModifiers::NONE, KeyCode::Char('?')) => {
-                self.state.popup = Some(crate::tui::app_state::PopupKind::Help);
+            // Help
+            (KeyModifiers::NONE, KeyCode::Char('?'))
+            | (KeyModifiers::NONE, KeyCode::F(10)) => {
+                self.state.popup = Some(PopupKind::Help);
             }
 
-            // Clear embedded terminal
+            // Clear terminal
             (KeyModifiers::CONTROL, KeyCode::Char('l')) => {
                 self.state.terminal.lines.clear();
             }
 
             // Export report
-            (KeyModifiers::CONTROL, KeyCode::Char('e')) => {
-                self.export_report().await?;
+            (KeyModifiers::CONTROL, KeyCode::Char('e')) => self.export_report().await?,
+
+            // Search
+            (KeyModifiers::CONTROL, KeyCode::Char('f')) => self.state.open_search(),
+
+            // Inspector
+            (KeyModifiers::NONE, KeyCode::Char('i')) => {
+                self.state.open_inspector_for_selected();
             }
 
-            // Search / filter
-            (KeyModifiers::CONTROL, KeyCode::Char('f')) => {
-                self.state.open_search();
+            // Delete finding
+            (KeyModifiers::NONE, KeyCode::Char('d')) => {
+                if let Some(idx) = self.state.selected_finding {
+                    if let Some(f) = self.state.findings.get(idx) {
+                        let fid   = f.id.clone();
+                        let title = f.title.chars().take(30).collect::<String>();
+                        self.state.popup = Some(PopupKind::Confirm {
+                            msg:    format!("Delete finding: {title}?"),
+                            action: ConfirmAction::DeleteFinding(fid),
+                        });
+                    }
+                }
             }
 
-            // Tab between panels
-            (KeyModifiers::NONE, KeyCode::Tab) => {
-                self.state.next_panel();
-            }
-
-            // Page navigation
-            (KeyModifiers::NONE, KeyCode::PageUp) => self.state.page_up(),
+            (KeyModifiers::NONE, KeyCode::PageUp)   => self.state.page_up(),
             (KeyModifiers::NONE, KeyCode::PageDown) => self.state.page_down(),
+            (KeyModifiers::NONE, KeyCode::Home)     => self.state.scroll_top(),
+            (KeyModifiers::NONE, KeyCode::End)      => self.state.scroll_bottom(),
 
             _ => {}
         }
         Ok(false)
     }
 
+    // ── popup key handler ─────────────────────────────────────────────────────
+
+    async fn handle_popup_key(&mut self, key: crossterm::event::KeyEvent) -> Result<bool> {
+        if key.code == KeyCode::Esc {
+            self.state.popup = None;
+            return Ok(false);
+        }
+
+        let popup = match self.state.popup.clone() {
+            Some(p) => p,
+            None    => return Ok(false),
+        };
+
+        match popup {
+            PopupKind::TargetInput { ref query } => {
+                match key.code {
+                    KeyCode::Enter => {
+                        let target = query.clone();
+                        self.state.current_target = target.clone();
+                        self.state.popup = None;
+                        if target.is_empty() {
+                            self.notify(NotifLevel::Warning, "Target cleared".into());
+                        } else {
+                            self.notify(NotifLevel::Success, format!("Target → {target}"));
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        if let Some(PopupKind::TargetInput { ref mut query }) = self.state.popup {
+                            query.pop();
+                        }
+                    }
+                    KeyCode::Delete => {
+                        if let Some(PopupKind::TargetInput { ref mut query }) = self.state.popup {
+                            query.clear();
+                        }
+                    }
+                    KeyCode::Char(c) => {
+                        if let Some(PopupKind::TargetInput { ref mut query }) = self.state.popup {
+                            query.push(c);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            PopupKind::Confirm { action, .. } => {
+                match key.code {
+                    KeyCode::Char('y') | KeyCode::Enter => {
+                        self.state.popup = None;
+                        self.handle_confirm_action(action).await?;
+                    }
+                    _ => { self.state.popup = None; }
+                }
+            }
+
+            PopupKind::ContextMenu { items, .. } => {
+                match key.code {
+                    KeyCode::Enter => {
+                        if let Some(item) = items.into_iter().next() {
+                            let action = item.action;
+                            self.state.popup = None;
+                            self.handle_context_action(action).await?;
+                        }
+                    }
+                    _ => { self.state.popup = None; }
+                }
+            }
+
+            _ => { self.state.popup = None; }
+        }
+        Ok(false)
+    }
+
+    // ── mouse handling ────────────────────────────────────────────────────────
+
     fn handle_mouse(&mut self, ev: crossterm::event::MouseEvent) {
         match ev.kind {
             MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
+                self.state.popup = None; // dismiss any open popup
                 self.state.click(ev.column, ev.row);
             }
             MouseEventKind::Down(crossterm::event::MouseButton::Right) => {
                 self.state.context_menu(ev.column, ev.row);
             }
-            MouseEventKind::ScrollUp => self.state.scroll_up(),
+            MouseEventKind::ScrollUp   => self.state.scroll_up(),
             MouseEventKind::ScrollDown => self.state.scroll_down(),
             MouseEventKind::Drag(crossterm::event::MouseButton::Left) => {
                 self.state.drag(ev.column, ev.row);
@@ -304,12 +457,54 @@ impl Application {
         }
     }
 
+    // ── action handlers ───────────────────────────────────────────────────────
+
     async fn handle_enter(&mut self) -> Result<()> {
         match self.state.active_view() {
             ActiveView::ToolLauncher => self.launch_selected_tool().await?,
             ActiveView::Workspace    => self.state.open_inspector_for_selected(),
-            ActiveView::Inspector    => {}
-            _                       => {}
+            ActiveView::Terminal     => { self.state.terminal.focused = true; }
+            _                        => {}
+        }
+        Ok(())
+    }
+
+    async fn handle_confirm_action(&mut self, action: ConfirmAction) -> Result<()> {
+        match action {
+            ConfirmAction::KillJob(id) => {
+                let _ = self.executor.kill(&id).await;
+                self.state.mark_tool_finished(&id, -1);
+                self.notify(NotifLevel::Info, format!("Job {} killed", &id[..8.min(id.len())]));
+            }
+            ConfirmAction::ExportReport => self.export_report().await?,
+            ConfirmAction::DeleteFinding(id) => {
+                self.state.findings.retain(|f| f.id != id);
+                self.notify(NotifLevel::Info, "Finding removed".into());
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_context_action(&mut self, action: ContextAction) -> Result<()> {
+        match action {
+            ContextAction::LaunchTool(spec) => {
+                let target = self.state.current_target.clone();
+                match self.executor.launch(&spec, target).await {
+                    Ok(job_id) => {
+                        self.state.register_job(job_id, spec.name.clone());
+                        self.notify(NotifLevel::Success, format!("▶ {} started", spec.name));
+                    }
+                    Err(e) => self.notify(NotifLevel::Error, format!("Launch failed: {e}")),
+                }
+            }
+            ContextAction::OpenInspector => self.state.open_inspector_for_selected(),
+            ContextAction::CopyText(s) => {
+                let _ = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(format!("printf '%s' '{}' | xclip -selection clipboard 2>/dev/null || printf '%s' '{}' | xsel --clipboard 2>/dev/null", s, s))
+                    .spawn();
+                self.notify(NotifLevel::Info, format!("Copied: {}", s.chars().take(40).collect::<String>()));
+            }
         }
         Ok(())
     }
@@ -318,22 +513,32 @@ impl Application {
         let spec = match self.state.selected_tool_spec() {
             Some(s) => s.clone(),
             None => {
-                warn!("launch attempted but no tool selected");
+                self.notify(NotifLevel::Warning, "No tool selected – use ↑/↓".into());
                 return Ok(());
             }
         };
-        let target = self.state.current_target().clone();
-        info!(tool = %spec.name, "launching tool");
+
+        // If the tool needs a target and none is set, show the target input popup.
+        if spec.default_args.iter().any(|a| a.contains("{target}"))
+            && self.state.current_target.is_empty()
+        {
+            self.state.popup = Some(PopupKind::TargetInput { query: String::new() });
+            self.notify(NotifLevel::Warning, format!("{}: set a target first [t]", spec.name));
+            return Ok(());
+        }
+
+        let target = self.state.current_target.clone();
+        info!(tool = %spec.name, target = %target, "launching");
+
         match self.executor.launch(&spec, target).await {
             Ok(job_id) => {
                 self.state.register_job(job_id, spec.name.clone());
-                self.notify(crate::tui::app_state::NotifLevel::Info,
-                    format!("Started: {}", spec.name));
+                self.notify(NotifLevel::Success, format!("▶ {} started (Dashboard [1])", spec.name));
+                self.state.set_view(ActiveView::Dashboard);
             }
             Err(e) => {
                 error!(err = %e, "tool launch failed");
-                self.notify(crate::tui::app_state::NotifLevel::Error,
-                    format!("Launch failed: {e}"));
+                self.notify(NotifLevel::Error, format!("Launch failed: {e}"));
             }
         }
         Ok(())
@@ -352,12 +557,11 @@ impl Application {
         reporting::html::export(&findings, &project, &out_dir.join("report.html"))?;
         reporting::json::export(&findings, &project, &out_dir.join("report.json"))?;
 
-        self.notify(crate::tui::app_state::NotifLevel::Success,
-            format!("Report saved to {}", out_dir.display()));
+        self.notify(NotifLevel::Success, format!("Report → {}", out_dir.display()));
         Ok(())
     }
 
-    fn notify(&self, level: crate::tui::app_state::NotifLevel, msg: String) {
+    fn notify(&self, level: NotifLevel, msg: String) {
         let _ = self.event_tx.send(AppEvent::Notification { level, message: msg });
     }
 }
