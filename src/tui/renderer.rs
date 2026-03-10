@@ -309,5 +309,59 @@ fn render_popup(f: &mut Frame, area: Rect, popup: &PopupKind, _state: &AppState)
                 .style(theme::style_popup());
             f.render_widget(para, rect);
         }
+
+        PopupKind::WorkflowMenu { names, selected } => {
+            let h = (names.len() as u16 + 4).min(20);
+            let rect = centre_rect(56, h, area);
+            f.render_widget(Clear, rect);
+            let items: Vec<ListItem> = names
+                .iter()
+                .enumerate()
+                .map(|(i, n)| {
+                    let style = if i == *selected { theme::style_selected() } else { theme::style_normal() };
+                    ListItem::new(format!("  {n}")).style(style)
+                })
+                .collect();
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_set(theme::BORDER_SET)
+                        .border_style(theme::style_border_focused())
+                        .title(Span::styled(" ◆ Workflows  [Enter] Run  [↑/↓] Select  [Esc] Close ", theme::style_title())),
+                )
+                .style(theme::style_popup());
+            f.render_widget(list, rect);
+        }
+
+        PopupKind::StealthMenu { selected } => {
+            let ops = [
+                "0  Forensic wipe (history + temp files)",
+                "1  Randomise MAC — eth0",
+                "2  Randomise MAC — wlan0",
+                "3  Spoof process name → [kworker/0:1]",
+            ];
+            let h = ops.len() as u16 + 4;
+            let rect = centre_rect(54, h, area);
+            f.render_widget(Clear, rect);
+            let items: Vec<ListItem> = ops
+                .iter()
+                .enumerate()
+                .map(|(i, &op)| {
+                    let style = if i == *selected { theme::style_selected() } else { theme::style_normal() };
+                    ListItem::new(format!("  {op}")).style(style)
+                })
+                .collect();
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_set(theme::BORDER_SET)
+                        .border_style(theme::style_border_focused())
+                        .title(Span::styled(" ◆ Stealth Ops  [Enter] Execute  [↑/↓] Select  [Esc] Close ", theme::style_title())),
+                )
+                .style(theme::style_popup());
+            f.render_widget(list, rect);
+        }
     }
 }

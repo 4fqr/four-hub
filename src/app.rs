@@ -152,6 +152,18 @@ impl Application {
                     let _ = self.plugin_rt.fire_new_finding(&finding).await;
                 }
 
+                AppEvent::UpsertHost(host) => {
+                    if !self.state.hosts.iter().any(|h| h.address == host.address) {
+                        self.state.hosts.push(host);
+                    }
+                }
+
+                AppEvent::UpsertPort(port) => {
+                    if !self.state.ports.iter().any(|p| p.id == port.id) {
+                        self.state.ports.push(port);
+                    }
+                }
+
                 AppEvent::Notification { level, message } => {
                     self.state.push_notification(level, message);
                 }
@@ -335,6 +347,18 @@ impl Application {
             // Search
             (KeyModifiers::CONTROL, KeyCode::Char('f')) => self.state.open_search(),
 
+            // Workflow menu
+            (KeyModifiers::NONE, KeyCode::Char('w')) => {
+                let names = crate::tools::workflow::builtin_workflows()
+                    .iter().map(|w| w.name.clone()).collect();
+                self.state.popup = Some(PopupKind::WorkflowMenu { names, selected: 0 });
+            }
+
+            // Stealth menu
+            (KeyModifiers::NONE, KeyCode::Char('S')) => {
+                self.state.popup = Some(PopupKind::StealthMenu { selected: 0 });
+            }
+
             // Inspector
             (KeyModifiers::NONE, KeyCode::Char('i')) => {
                 self.state.open_inspector_for_selected();
@@ -432,6 +456,45 @@ impl Application {
                 }
             }
 
+            PopupKind::WorkflowMenu { names, selected } => {
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        let new_sel = if selected > 0 { selected - 1 } else { names.len().saturating_sub(1) };
+                        self.state.popup = Some(PopupKind::WorkflowMenu { names, selected: new_sel });
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        let new_sel = (selected + 1) % names.len().max(1);
+                        self.state.popup = Some(PopupKind::WorkflowMenu { names, selected: new_sel });
+                    }
+                    KeyCode::Enter => {
+                        if let Some(name) = names.get(selected).cloned() {
+                            self.state.popup = None;
+                            self.handle_confirm_action(ConfirmAction::RunWorkflow(name)).await?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            PopupKind::StealthMenu { selected } => {
+                const N: usize = 4;
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        let new_sel = if selected > 0 { selected - 1 } else { N - 1 };
+                        self.state.popup = Some(PopupKind::StealthMenu { selected: new_sel });
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        let new_sel = (selected + 1) % N;
+                        self.state.popup = Some(PopupKind::StealthMenu { selected: new_sel });
+                    }
+                    KeyCode::Enter => {
+                        self.state.popup = None;
+                        self.handle_confirm_action(ConfirmAction::StealthOp(selected as u8)).await?;
+                    }
+                    _ => {}
+                }
+            }
+
             _ => { self.state.popup = None; }
         }
         Ok(false)
@@ -477,6 +540,32 @@ impl Application {
                 self.notify(NotifLevel::Info, format!("Job {} killed", &id[..8.min(id.len())]));
             }
             ConfirmAction::ExportReport => self.export_report().await?,
+            ConfirmAction::RunWorkflow(name) => {
+                let workflows = crate::tools::workflow::builtin_workflows();
+                if let Some(wf) = workflows.into_iter().find(|w| w.name == name) {
+                    let target = self.state.current_target.clone();
+                    self.notify(NotifLevel::Info, format!("▶ Workflow '{}' started", wf.name));
+                    for step in &wf.stages {
+                        for tool_name in &step.tools {
+                            if let Some(spec) = self.executor.registry_find(tool_name) {
+                                match self.executor.launch(&spec, target.clone()).await {
+                                    Ok(jid) => self.state.register_job(jid, tool_name.clone()),
+                                    Err(e)  => self.notify(NotifLevel::Error, format!("wf tool {tool_name}: {e}")),
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ConfirmAction::StealthOp(op) => {
+                match op {
+                    0 => { crate::stealth::anti_forensics::wipe_on_exit(); self.notify(NotifLevel::Info, "Stealth: forensic wipe complete".into()); }
+                    1 => { let _ = crate::stealth::network::randomise_mac("eth0"); self.notify(NotifLevel::Info, "Stealth: MAC randomised on eth0".into()); }
+                    2 => { let _ = crate::stealth::network::randomise_mac("wlan0"); self.notify(NotifLevel::Info, "Stealth: MAC randomised on wlan0".into()); }
+                    3 => { crate::stealth::identity::spoof_process_name("[kworker/0:1]"); self.notify(NotifLevel::Info, "Stealth: process name spoofed".into()); }
+                    _ => {}
+                }
+            }
             ConfirmAction::DeleteFinding(id) => {
                 self.state.findings.retain(|f| f.id != id);
                 self.notify(NotifLevel::Info, "Finding removed".into());
@@ -556,6 +645,10 @@ impl Application {
 
         reporting::html::export(&findings, &project, &out_dir.join("report.html"))?;
         reporting::json::export(&findings, &project, &out_dir.join("report.json"))?;
+
+        // Open the HTML report in the default browser.
+        let html_path = out_dir.join("report.html");
+        let _ = std::process::Command::new("xdg-open").arg(&html_path).spawn();
 
         self.notify(NotifLevel::Success, format!("Report → {}", out_dir.display()));
         Ok(())

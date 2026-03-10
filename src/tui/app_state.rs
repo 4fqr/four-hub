@@ -128,10 +128,12 @@ pub enum PopupKind {
     Confirm { msg: String, action: ConfirmAction },
     ContextMenu { x: u16, y: u16, items: Vec<ContextItem> },
     Error { msg: String },
+    WorkflowMenu { names: Vec<String>, selected: usize },
+    StealthMenu { selected: usize },
 }
 
 #[derive(Debug, Clone)]
-pub enum ConfirmAction { KillJob(String), DeleteFinding(String), ExportReport }
+pub enum ConfirmAction { KillJob(String), DeleteFinding(String), ExportReport, RunWorkflow(String), StealthOp(u8) }
 
 #[derive(Debug, Clone)]
 pub struct ContextItem {
@@ -218,8 +220,17 @@ impl AppState {
     pub async fn update_stats(&mut self, db: &Database) {
         if let Ok(s) = db.stats() { self.db_stats = s; }
         if let Ok(h) = db.all_hosts() { self.hosts = h; }
-        if let Ok(f) = db.all_findings() {
-            self.findings = f;
+        if let Ok(f) = db.all_findings() { self.findings = f; }
+        // Load ports for the selected host.
+        if let Some(idx) = self.selected_host {
+            if let Some(host) = self.hosts.get(idx) {
+                let hid = host.id.clone();
+                if let Ok(p) = db.ports_for_host(&hid) {
+                    self.ports = p;
+                }
+            }
+        } else {
+            self.ports.clear();
         }
     }
 

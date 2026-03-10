@@ -1,7 +1,7 @@
 // ─── Four-Hub · tui/events.rs ────────────────────────────────────────────────
 //! Internal event bus types and the crossterm event bridge.
 
-use crate::db::Finding;
+use crate::db::{Finding, Host, Port};
 use crossterm::event::Event;
 // (serde Deserialize/Serialize not used in this module)
 
@@ -18,6 +18,10 @@ pub enum AppEvent {
     ToolFinished { id: String, exit_code: i32 },
     /// A new finding was parsed from tool output.
     NewFinding(Finding),
+    /// A host discovered by a tool (upsert into DB + state).
+    UpsertHost(Host),
+    /// A port discovered by a tool (upsert into DB + state).
+    UpsertPort(Port),
     /// UI notification to push to the notification bar.
     Notification { level: crate::tui::app_state::NotifLevel, message: String },
 }

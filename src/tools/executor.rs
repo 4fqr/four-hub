@@ -5,13 +5,14 @@
 use crate::{
     db::{Database, ScanJob},
     plugins::runtime::PluginRuntime,
-    tools::{parser, spec::ToolSpec},
-    tui::app_state::{NotifLevel},
+    tools::{parser, parser::ParsedRecord, spec::ToolSpec},
+    tui::app_state::NotifLevel,
     tui::events::AppEvent,
 };
 use anyhow::{bail, Result};
 use chrono::Utc;
 use dashmap::DashMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -110,6 +111,8 @@ impl ToolExecutor {
 
         let handle = tokio::spawn(async move {
             let mut all_output = Vec::<String>::new();
+            // address → host_id for port linkage
+            let mut addr_to_hid: HashMap<String, String> = HashMap::new();
 
             // Read stdout.
             let mut out_reader = BufReader::new(stdout).lines();
@@ -123,10 +126,28 @@ impl ToolExecutor {
                             Ok(Some(l)) => {
                                 let _ = etx.send(AppEvent::ToolOutput { id: jid.clone(), line: l.clone() });
                                 all_output.push(l.clone());
-                                // Live parse for findings.
-                                for f in parser::parse_line(&spec2, &l, &tgt2) {
-                                    let _ = db.insert_finding(&f);
-                                    let _ = etx.send(AppEvent::NewFinding(f));
+                                // Live parse → dispatch all record types.
+                                for rec in parser::parse_line(&spec2, &l, &tgt2) {
+                                    match rec {
+                                        ParsedRecord::Finding(f) => {
+                                            let _ = db.insert_finding(&f);
+                                            let _ = etx.send(AppEvent::NewFinding(f));
+                                        }
+                                        ParsedRecord::NewHost(h) => {
+                                            addr_to_hid.insert(h.address.clone(), h.id.clone());
+                                            let _ = db.upsert_host(&h);
+                                            let _ = etx.send(AppEvent::UpsertHost(h));
+                                        }
+                                        ParsedRecord::NewPort { mut port, host_addr } => {
+                                            if let Some(hid) = addr_to_hid.get(&host_addr) {
+                                                port.host_id = hid.clone();
+                                            }
+                                            if !port.host_id.is_empty() {
+                                                let _ = db.upsert_port(&port);
+                                                let _ = etx.send(AppEvent::UpsertPort(port));
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             Ok(None) => break,
@@ -158,6 +179,33 @@ impl ToolExecutor {
                 warn!(err = %e, "could not update job status");
             }
 
+            // Post-process nmap XML for full port/host data.
+            if spec2.name == "nmap" {
+                let xml_path = format!("/tmp/fh_nmap_{tgt2}.xml");
+                for rec in parser::parse_nmap_xml(&xml_path, &tgt2) {
+                    match rec {
+                        ParsedRecord::Finding(f) => {
+                            let _ = db.insert_finding(&f);
+                            let _ = etx.send(AppEvent::NewFinding(f));
+                        }
+                        ParsedRecord::NewHost(h) => {
+                            addr_to_hid.insert(h.address.clone(), h.id.clone());
+                            let _ = db.upsert_host(&h);
+                            let _ = etx.send(AppEvent::UpsertHost(h));
+                        }
+                        ParsedRecord::NewPort { mut port, host_addr } => {
+                            if let Some(hid) = addr_to_hid.get(&host_addr) {
+                                port.host_id = hid.clone();
+                            }
+                            if !port.host_id.is_empty() {
+                                let _ = db.upsert_port(&port);
+                                let _ = etx.send(AppEvent::UpsertPort(port));
+                            }
+                        }
+                    }
+                }
+            }
+
             let _ = etx.send(AppEvent::ToolFinished { id: jid.clone(), exit_code });
             info!(job = %jid, exit_code, "tool finished");
         });
@@ -174,5 +222,10 @@ impl ToolExecutor {
             info!(job = %job_id, "job killed");
         }
         Ok(())
+    }
+
+    /// Delegate to registry find.
+    pub fn registry_find(&self, name: &str) -> Option<crate::tools::spec::ToolSpec> {
+        self.registry.find(name)
     }
 }
