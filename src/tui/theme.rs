@@ -47,10 +47,15 @@ pub fn style_error()    -> Style { Style::default().fg(NEON_RED).bg(BG_BASE).add
 pub fn style_success()  -> Style { Style::default().fg(NEON_GREEN).bg(BG_BASE).add_modifier(Modifier::BOLD) }
 pub fn style_panel()    -> Style { Style::default().fg(FG_PRIMARY).bg(BG_PANEL) }
 pub fn style_border_focused() -> Style { Style::default().fg(BORDER_FOCUSED) }
+pub fn style_border_active()  -> Style { Style::default().fg(BORDER_ACTIVE) }
 pub fn style_border_normal()  -> Style { Style::default().fg(BORDER_NORMAL) }
-pub fn style_popup()    -> Style { Style::default().fg(FG_PRIMARY).bg(Color::Rgb(20, 22, 40)) }
-pub fn style_keybind()  -> Style { Style::default().fg(NEON_PINK).add_modifier(Modifier::BOLD) }
+pub fn style_popup()     -> Style { Style::default().fg(FG_PRIMARY).bg(Color::Rgb(20, 22, 40)) }
+pub fn style_keybind()   -> Style { Style::default().fg(NEON_PINK).add_modifier(Modifier::BOLD) }
 pub fn style_neon_pink() -> Style { Style::default().fg(NEON_PINK).bg(BG_BASE) }
+pub fn style_critical()  -> Style { Style::default().fg(NEON_RED).bg(BG_BASE).add_modifier(Modifier::BOLD) }
+pub fn style_high()      -> Style { Style::default().fg(NEON_ORANGE).bg(BG_BASE).add_modifier(Modifier::BOLD) }
+pub fn style_installed() -> Style { Style::default().fg(NEON_GREEN).bg(BG_BASE) }
+pub fn style_missing()   -> Style { Style::default().fg(NEON_RED).bg(BG_BASE) }
 
 /// Box-drawing characters for panel borders.
 pub const BORDER_SET: ratatui::symbols::border::Set = ratatui::symbols::border::ROUNDED;

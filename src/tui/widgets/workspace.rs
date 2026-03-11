@@ -1,11 +1,15 @@
 // ─── Four-Hub · tui/widgets/workspace.rs ─────────────────────────────────────
 //! Workspace view: host table | port table | findings table.
 
-use crate::tui::{app_state::AppState, layout::WorkspaceLayout, theme};
+use crate::tui::{
+    app_state::{AppState, Panel},
+    layout::WorkspaceLayout,
+    theme,
+};
 use ratatui::{
     layout::{Constraint, Rect},
-    text::Span,
-    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    text::{Line, Span},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
     Frame,
 };
 
@@ -17,24 +21,22 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_hosts(f: &mut Frame, area: Rect, state: &AppState) {
+    let focused = state.panel == Panel::Left;
+    let border_style = if focused { theme::style_border_focused() } else { theme::style_border_normal() };
+
     let rows: Vec<Row> = state
         .hosts
         .iter()
         .map(|h| {
             Row::new(vec![
                 Cell::from(h.address.chars().take(20).collect::<String>()),
-                Cell::from(
-                    h.hostname
-                        .as_deref()
-                        .unwrap_or("-")
-                        .chars()
-                        .take(20)
-                        .collect::<String>(),
-                ),
-                Cell::from(h.os.as_deref().unwrap_or("-").chars().take(12).collect::<String>()),
+                Cell::from(h.hostname.as_deref().unwrap_or("—").chars().take(20).collect::<String>()),
+                Cell::from(h.os.as_deref().unwrap_or("—").chars().take(12).collect::<String>()),
             ])
         })
         .collect();
+
+    let title = format!(" ◆ HOSTS ({}) ", state.hosts.len());
 
     let table = Table::new(
         rows,
@@ -45,66 +47,70 @@ fn render_hosts(f: &mut Frame, area: Rect, state: &AppState) {
         Block::default()
             .borders(Borders::ALL)
             .border_set(theme::BORDER_SET)
-            .border_style(theme::style_border_focused())
-            .title(Span::styled(" ◆ HOSTS ", theme::style_title())),
+            .border_style(border_style)
+            .title(Span::styled(title, theme::style_title())),
     )
     .highlight_style(theme::style_selected())
+    .highlight_symbol(if focused { "▶ " } else { "  " })
     .style(theme::style_panel());
 
-    let mut ts = TableState::default()
-        .with_selected(state.selected_host);
+    let mut ts = TableState::default().with_selected(state.selected_host);
     f.render_stateful_widget(table, area, &mut ts);
 }
 
 fn render_ports(f: &mut Frame, area: Rect, state: &AppState) {
+    let focused = state.panel == Panel::Top;
+    let border_style = if focused { theme::style_border_focused() } else { theme::style_border_normal() };
+
+    if state.selected_host.is_none() && state.ports.is_empty() {
+        let para = Paragraph::new(vec![
+            Line::raw(""),
+            Line::from(Span::styled("  ← Select a host to see its ports.", theme::style_dim())),
+        ])
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_set(theme::BORDER_SET)
+                .border_style(border_style)
+                .title(Span::styled(" ◆ PORTS ", theme::style_title())),
+        )
+        .style(theme::style_panel());
+        f.render_widget(para, area);
+        return;
+    }
+
     let rows: Vec<Row> = state
         .ports
         .iter()
         .map(|p| {
-            let state_style = if p.state == "open" {
-                theme::style_success()
-            } else {
-                theme::style_error()
-            };
+            let state_style = if p.state == "open" { theme::style_success() } else { theme::style_error() };
             Row::new(vec![
                 Cell::from(p.port.to_string()),
                 Cell::from(p.protocol.clone()),
                 Cell::from(Span::styled(p.state.clone(), state_style)),
-                Cell::from(p.service.as_deref().unwrap_or("-").chars().take(12).collect::<String>()),
-                Cell::from(
-                    p.version
-                        .as_deref()
-                        .unwrap_or("-")
-                        .chars()
-                        .take(25)
-                        .collect::<String>(),
-                ),
+                Cell::from(p.service.as_deref().unwrap_or("—").chars().take(12).collect::<String>()),
+                Cell::from(p.version.as_deref().unwrap_or("—").chars().take(25).collect::<String>()),
             ])
         })
         .collect();
 
+    let open_count = state.ports.iter().filter(|p| p.state == "open").count();
+    let title = format!(" ◆ PORTS ({} open / {}) ", open_count, state.ports.len());
+
     let table = Table::new(
         rows,
-        [
-            Constraint::Length(6),
-            Constraint::Length(6),
-            Constraint::Length(9),
-            Constraint::Length(13),
-            Constraint::Min(10),
-        ],
+        [Constraint::Length(6), Constraint::Length(6), Constraint::Length(9), Constraint::Length(13), Constraint::Min(10)],
     )
-    .header(
-        Row::new(vec!["PORT", "PROTO", "STATE", "SERVICE", "VERSION"])
-            .style(theme::style_title()),
-    )
+    .header(Row::new(vec!["PORT", "PROTO", "STATE", "SERVICE", "VERSION"]).style(theme::style_title()))
     .block(
         Block::default()
             .borders(Borders::ALL)
             .border_set(theme::BORDER_SET)
-            .border_style(theme::style_border_normal())
-            .title(Span::styled(" ◆ PORTS ", theme::style_title())),
+            .border_style(border_style)
+            .title(Span::styled(title, theme::style_title())),
     )
     .highlight_style(theme::style_selected())
+    .highlight_symbol(if focused { "▶ " } else { "  " })
     .style(theme::style_panel());
 
     let mut ts = TableState::default().with_selected(state.selected_port);
@@ -112,6 +118,9 @@ fn render_ports(f: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_findings(f: &mut Frame, area: Rect, state: &AppState) {
+    let focused = state.panel == Panel::Bottom;
+    let border_style = if focused { theme::style_border_focused() } else { theme::style_border_normal() };
+
     let rows: Vec<Row> = state
         .findings
         .iter()
@@ -126,6 +135,8 @@ fn render_findings(f: &mut Frame, area: Rect, state: &AppState) {
         })
         .collect();
 
+    let title = format!(" ◆ FINDINGS ({}) ", state.findings.len());
+
     let table = Table::new(
         rows,
         [Constraint::Length(9), Constraint::Length(11), Constraint::Min(20)],
@@ -135,10 +146,11 @@ fn render_findings(f: &mut Frame, area: Rect, state: &AppState) {
         Block::default()
             .borders(Borders::ALL)
             .border_set(theme::BORDER_SET)
-            .border_style(theme::style_border_normal())
-            .title(Span::styled(" ◆ FINDINGS ", theme::style_title())),
+            .border_style(border_style)
+            .title(Span::styled(title, theme::style_title())),
     )
     .highlight_style(theme::style_selected())
+    .highlight_symbol(if focused { "▶ " } else { "  " })
     .style(theme::style_panel());
 
     let mut ts = TableState::default().with_selected(state.selected_finding);

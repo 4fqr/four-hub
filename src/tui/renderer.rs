@@ -136,9 +136,10 @@ fn render_statusbar(f: &mut Frame, area: Rect, state: &AppState) {
                 .border_style(theme::style_border_focused())
                 .title(Span::styled(
                     format!(
-                        " ◆ FOUR-HUB v{}  ·  {}  ·  hosts:{}  findings:{} ",
+                        " ◆ FOUR-HUB v{}  ·  {}{}  ·  hosts:{}  findings:{} ",
                         env!("CARGO_PKG_VERSION"),
                         state.cfg.general.project_name,
+                        if state.current_target.is_empty() { String::new() } else { format!("  ▶  {}", state.current_target) },
                         state.db_stats.hosts,
                         state.db_stats.findings,
                     ),
@@ -157,21 +158,54 @@ fn render_statusbar(f: &mut Frame, area: Rect, state: &AppState) {
 
 // ── Help bar ──────────────────────────────────────────────────────────────────
 
-fn render_helpbar(f: &mut Frame, area: Rect, _state: &AppState) {
-    let spans = vec![
-        Span::styled("[q]",     theme::style_keybind()), Span::raw("Quit  "),
-        Span::styled("[1-5]",   theme::style_keybind()), Span::raw("Views  "),
-        Span::styled("[r]",     theme::style_keybind()), Span::raw("Run  "),
-        Span::styled("[t]",     theme::style_keybind()), Span::raw("Target  "),
-        Span::styled("[x]",     theme::style_keybind()), Span::raw("Kill  "),
-        Span::styled("[i]",     theme::style_keybind()), Span::raw("Inspect  "),
-        Span::styled("[d]",     theme::style_keybind()), Span::raw("Delete  "),
-        Span::styled("[</> ]",  theme::style_keybind()), Span::raw("Category  "),
-        Span::styled("[^e]",    theme::style_keybind()), Span::raw("Export  "),
-        Span::styled("[?]",     theme::style_keybind()), Span::raw("Help  "),
-        Span::styled("[Enter]", theme::style_keybind()), Span::raw("Select  "),
-        Span::styled("[Esc]",   theme::style_keybind()), Span::raw("Back"),
-    ];
+fn render_helpbar(f: &mut Frame, area: Rect, state: &AppState) {
+    let spans: Vec<Span> = match state.active_view {
+        ActiveView::Dashboard => vec![
+            Span::styled("[q]",   theme::style_keybind()), Span::raw(" Quit  "),
+            Span::styled("[1-5]", theme::style_keybind()), Span::raw(" Views  "),
+            Span::styled("[t]",   theme::style_keybind()), Span::raw(" Target  "),
+            Span::styled("[w]",   theme::style_keybind()), Span::raw(" Workflows  "),
+            Span::styled("[S]",   theme::style_keybind()), Span::raw(" Stealth  "),
+            Span::styled("[^e]",  theme::style_keybind()), Span::raw(" Export  "),
+            Span::styled("[^f]",  theme::style_keybind()), Span::raw(" Search  "),
+            Span::styled("[?]",   theme::style_keybind()), Span::raw(" Help"),
+        ],
+        ActiveView::ToolLauncher => vec![
+            Span::styled("[q]",    theme::style_keybind()), Span::raw(" Quit  "),
+            Span::styled("[1-5]",  theme::style_keybind()), Span::raw(" Views  "),
+            Span::styled("[↑/↓]",   theme::style_keybind()), Span::raw(" Tools  "),
+            Span::styled("[</> ]", theme::style_keybind()), Span::raw(" Category  "),
+            Span::styled("[r]",    theme::style_keybind()), Span::raw(" Run  "),
+            Span::styled("[t]",    theme::style_keybind()), Span::raw(" Target  "),
+            Span::styled("[?]",    theme::style_keybind()), Span::raw(" Help"),
+        ],
+        ActiveView::Workspace => vec![
+            Span::styled("[q]",     theme::style_keybind()), Span::raw(" Quit  "),
+            Span::styled("[1-5]",   theme::style_keybind()), Span::raw(" Views  "),
+            Span::styled("[Tab]",   theme::style_keybind()), Span::raw(" Focus panel  "),
+            Span::styled("[↑/↓]",    theme::style_keybind()), Span::raw(" Navigate  "),
+            Span::styled("[Enter]", theme::style_keybind()), Span::raw(" Inspect  "),
+            Span::styled("[d]",     theme::style_keybind()), Span::raw(" Delete  "),
+            Span::styled("[?]",     theme::style_keybind()), Span::raw(" Help"),
+        ],
+        ActiveView::Inspector => vec![
+            Span::styled("[q]",   theme::style_keybind()), Span::raw(" Quit  "),
+            Span::styled("[1-5]", theme::style_keybind()), Span::raw(" Views  "),
+            Span::styled("[↑/↓]", theme::style_keybind()), Span::raw(" Scroll  "),
+            Span::styled("[PgU/PgD]", theme::style_keybind()), Span::raw(" Page  "),
+            Span::styled("[Esc]", theme::style_keybind()), Span::raw(" Back  "),
+            Span::styled("[?]",   theme::style_keybind()), Span::raw(" Help"),
+        ],
+        ActiveView::Terminal => vec![
+            Span::styled("[q]",    theme::style_keybind()), Span::raw(" Quit  "),
+            Span::styled("[1-5]",  theme::style_keybind()), Span::raw(" Views  "),
+            Span::styled("[Enter]",theme::style_keybind()), Span::raw(" Focus input  "),
+            Span::styled("[↑/↓]",   theme::style_keybind()), Span::raw(" History  "),
+            Span::styled("[Esc]",  theme::style_keybind()), Span::raw(" Blur  "),
+            Span::styled("[x]",    theme::style_keybind()), Span::raw(" Kill job  "),
+            Span::styled("[?]",    theme::style_keybind()), Span::raw(" Help"),
+        ],
+    };
     let line = Line::from(spans);
     let para = Paragraph::new(line).style(theme::style_dim());
     f.render_widget(para, area);
@@ -218,7 +252,9 @@ fn render_popup(f: &mut Frame, area: Rect, popup: &PopupKind, _state: &AppState)
                 Line::from(vec![Span::styled("  x      ", theme::style_keybind()), Span::raw("Kill selected job")]),
                 Line::from(vec![Span::styled("  ^e     ", theme::style_keybind()), Span::raw("Export report")]),
                 Line::from(vec![Span::styled("  ^f     ", theme::style_keybind()), Span::raw("Search")]),
-                Line::from(vec![Span::styled("  Tab    ", theme::style_keybind()), Span::raw("Focus next panel")]),
+                Line::from(vec![Span::styled("  Tab    ", theme::style_keybind()), Span::raw("Focus next panel  (Workspace: cycles hosts→ports→findings)")]),
+                Line::from(vec![Span::styled("  w      ", theme::style_keybind()), Span::raw("Workflow menu")]),
+                Line::from(vec![Span::styled("  S      ", theme::style_keybind()), Span::raw("Stealth ops menu")]),
                 Line::from(vec![Span::styled("  Esc    ", theme::style_keybind()), Span::raw("Dismiss / cancel")]),
                 Line::from(vec![Span::styled("  q      ", theme::style_keybind()), Span::raw("Quit")]),
             ])

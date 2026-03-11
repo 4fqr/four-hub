@@ -35,12 +35,26 @@ fn render_output(f: &mut Frame, area: Rect, state: &AppState) {
                 theme::style_accent().add_modifier(Modifier::BOLD)
             } else if l.starts_with("ERROR") || l.starts_with("error") {
                 theme::style_error()
+            } else if l.starts_with("[stderr]") || l.starts_with("stderr:") {
+                theme::style_error()
+            } else if l.starts_with("✓") || l.starts_with("▶") || l.starts_with("[done]") {
+                theme::style_success()
+            } else if l.starts_with("[warn") || l.starts_with("WARNING") {
+                theme::style_warning()
             } else {
                 theme::style_normal()
             };
             ListItem::new(Span::styled(l.clone(), style))
         })
         .collect();
+
+    // Show active job info in the title
+    let active_job = state.jobs.iter().rev().find(|j| !j.finished);
+    let title = if let Some(job) = active_job {
+        format!(" ◆ TERMINAL — running: {} ▶ {} ", job.tool, job.target)
+    } else {
+        " ◆ EMBEDDED TERMINAL ".to_string()
+    };
 
     let list = List::new(lines)
         .block(
@@ -52,7 +66,7 @@ fn render_output(f: &mut Frame, area: Rect, state: &AppState) {
                 } else {
                     theme::style_border_normal()
                 })
-                .title(Span::styled(" ◆ EMBEDDED TERMINAL ", theme::style_title())),
+                .title(Span::styled(title, theme::style_title())),
         )
         .style(theme::style_panel());
 

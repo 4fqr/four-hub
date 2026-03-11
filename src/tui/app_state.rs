@@ -346,10 +346,21 @@ impl AppState {
             ActiveView::ToolLauncher => {
                 if self.selected_tool > 0 { self.selected_tool -= 1; }
             }
-            ActiveView::Workspace => {
-                if let Some(ref mut i) = self.selected_host { if *i > 0 { *i -= 1; } }
-                else if !self.hosts.is_empty() { self.selected_host = Some(0); }
-            }
+            ActiveView::Workspace => match self.panel {
+                Panel::Left => {
+                    if let Some(ref mut i) = self.selected_host { if *i > 0 { *i -= 1; } }
+                    else if !self.hosts.is_empty() { self.selected_host = Some(0); }
+                }
+                Panel::Top => {
+                    if let Some(ref mut i) = self.selected_port { if *i > 0 { *i -= 1; } }
+                    else if !self.ports.is_empty() { self.selected_port = Some(0); }
+                }
+                Panel::Bottom => {
+                    if let Some(ref mut i) = self.selected_finding { if *i > 0 { *i -= 1; } }
+                    else if !self.findings.is_empty() { self.selected_finding = Some(0); }
+                }
+                _ => {}
+            },
             ActiveView::Dashboard => {
                 if let Some(ref mut i) = self.selected_job { if *i > 0 { *i -= 1; } }
             }
@@ -366,14 +377,33 @@ impl AppState {
                 let max = self.tools_in_category.len().saturating_sub(1);
                 if self.selected_tool < max { self.selected_tool += 1; }
             }
-            ActiveView::Workspace => {
-                let max = self.hosts.len().saturating_sub(1);
-                match &mut self.selected_host {
-                    Some(i) if *i < max => { *i += 1; }
-                    None if !self.hosts.is_empty() => { self.selected_host = Some(0); }
-                    _ => {}
+            ActiveView::Workspace => match self.panel {
+                Panel::Left => {
+                    let max = self.hosts.len().saturating_sub(1);
+                    match &mut self.selected_host {
+                        Some(i) if *i < max => { *i += 1; }
+                        None if !self.hosts.is_empty() => { self.selected_host = Some(0); }
+                        _ => {}
+                    }
                 }
-            }
+                Panel::Top => {
+                    let max = self.ports.len().saturating_sub(1);
+                    match &mut self.selected_port {
+                        Some(i) if *i < max => { *i += 1; }
+                        None if !self.ports.is_empty() => { self.selected_port = Some(0); }
+                        _ => {}
+                    }
+                }
+                Panel::Bottom => {
+                    let max = self.findings.len().saturating_sub(1);
+                    match &mut self.selected_finding {
+                        Some(i) if *i < max => { *i += 1; }
+                        None if !self.findings.is_empty() => { self.selected_finding = Some(0); }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            },
             ActiveView::Dashboard => {
                 let max = self.jobs.len().saturating_sub(1);
                 match &mut self.selected_job {
@@ -388,12 +418,21 @@ impl AppState {
     }
 
     pub fn next_panel(&mut self) {
-        self.panel = match self.panel {
-            Panel::Left   => Panel::Right,
-            Panel::Right  => Panel::Top,
-            Panel::Top    => Panel::Bottom,
-            Panel::Bottom => Panel::Left,
-        };
+        if self.active_view == ActiveView::Workspace {
+            self.panel = match self.panel {
+                Panel::Left   => Panel::Top,
+                Panel::Top    => Panel::Bottom,
+                Panel::Bottom => Panel::Left,
+                _             => Panel::Left,
+            };
+        } else {
+            self.panel = match self.panel {
+                Panel::Left   => Panel::Right,
+                Panel::Right  => Panel::Top,
+                Panel::Top    => Panel::Bottom,
+                Panel::Bottom => Panel::Left,
+            };
+        }
     }
 
     pub fn page_up(&mut self) {

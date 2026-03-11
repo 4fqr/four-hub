@@ -14,7 +14,7 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
         None => render_placeholder(f, area),
         Some(finding) => {
             let lo = InspectorLayout::compute(area);
-            render_header(f, lo.header, finding);
+            render_header(f, lo.header, finding, state.inspector_scroll);
             render_body(f, lo.body, finding, state.inspector_scroll);
             render_evidence(f, lo.evidence, finding);
         }
@@ -40,7 +40,7 @@ fn render_placeholder(f: &mut Frame, area: Rect) {
     f.render_widget(para, area);
 }
 
-fn render_header(f: &mut Frame, area: Rect, finding: &crate::db::Finding) {
+fn render_header(f: &mut Frame, area: Rect, finding: &crate::db::Finding, scroll: u16) {
     let sev_style = ratatui::style::Style::default()
         .fg(theme::severity_color(finding.severity.as_str()))
         .add_modifier(ratatui::style::Modifier::BOLD);
@@ -64,13 +64,14 @@ fn render_header(f: &mut Frame, area: Rect, finding: &crate::db::Finding) {
             Span::styled(finding.created_at.format("%Y-%m-%d %H:%M UTC").to_string(), theme::style_dim()),
         ]),
     ];
+    let scroll_hint = format!(" ◆ FINDING DETAIL  [↑/↓] scroll (line {})  [Esc] back ", scroll);
     let para = Paragraph::new(lines)
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_set(theme::BORDER_SET)
                 .border_style(theme::style_border_focused())
-                .title(Span::styled(" ◆ FINDING DETAIL ", theme::style_title())),
+                .title(Span::styled(scroll_hint, theme::style_title())),
         )
         .style(theme::style_panel());
     f.render_widget(para, area);
