@@ -96,13 +96,24 @@ pip3 install --break-system-packages \
 if ! command -v cargo &>/dev/null; then
     ok "Installing Rust toolchain…"
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
-    source "$HOME/.cargo/env"
 fi
+# Always source cargo env — handles both fresh install and existing installs.
+export PATH="$HOME/.cargo/bin:$PATH"
+[ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 
-ok "Building + installing four-hub…"
+ok "Building + installing four-hub…  (this may take a few minutes)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
-cargo install --path . 2>&1 | tail -5
+# PYO3_USE_ABI3_FORWARD_COMPATIBILITY silences PyO3 Python-version mismatch on
+# Python 3.13+ until the crate version is fully caught up.
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+cargo install --path . 2>&1 | tail -10
+
+# Make four-hub available system-wide (root installed it, but user needs it)
+if [ -f "$HOME/.cargo/bin/four-hub" ]; then
+    ln -sf "$HOME/.cargo/bin/four-hub" /usr/local/bin/four-hub
+    ok "four-hub → /usr/local/bin/four-hub"
+fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
