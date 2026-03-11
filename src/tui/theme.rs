@@ -1,9 +1,5 @@
-// ─── Four-Hub · tui/theme.rs ─────────────────────────────────────────────────
-//! Colour palettes and style helpers.
 
 use ratatui::style::{Color, Modifier, Style};
-
-// ── Neon cyberpunk palette ───────────────────────────────────────────────────
 pub const BG_BASE:     Color = Color::Rgb(10, 10, 18);
 pub const BG_PANEL:    Color = Color::Rgb(16, 16, 30);
 pub const BG_SELECTED: Color = Color::Rgb(28, 28, 50);
@@ -23,8 +19,6 @@ pub const FG_DIM:       Color = Color::Rgb( 80,  90, 110);
 pub const BORDER_NORMAL:  Color = Color::Rgb( 50,  55,  80);
 pub const BORDER_FOCUSED: Color = NEON_CYAN;
 pub const BORDER_ACTIVE:  Color = NEON_GREEN;
-
-// ── Severity colours ─────────────────────────────────────────────────────────
 pub fn severity_color(sev: &str) -> Color {
     match sev.to_lowercase().as_str() {
         "critical" => NEON_RED,
@@ -34,8 +28,6 @@ pub fn severity_color(sev: &str) -> Color {
         _          => FG_SECONDARY,
     }
 }
-
-// ── Style helpers ─────────────────────────────────────────────────────────────
 
 pub fn style_normal()   -> Style { Style::default().fg(FG_PRIMARY).bg(BG_BASE) }
 pub fn style_title()    -> Style { Style::default().fg(NEON_GREEN).bg(BG_PANEL).add_modifier(Modifier::BOLD) }
@@ -56,6 +48,4 @@ pub fn style_critical()  -> Style { Style::default().fg(NEON_RED).bg(BG_BASE).ad
 pub fn style_high()      -> Style { Style::default().fg(NEON_ORANGE).bg(BG_BASE).add_modifier(Modifier::BOLD) }
 pub fn style_installed() -> Style { Style::default().fg(NEON_GREEN).bg(BG_BASE) }
 pub fn style_missing()   -> Style { Style::default().fg(NEON_RED).bg(BG_BASE) }
-
-/// Box-drawing characters for panel borders.
 pub const BORDER_SET: ratatui::symbols::border::Set = ratatui::symbols::border::ROUNDED;

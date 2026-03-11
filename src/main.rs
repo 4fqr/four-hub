@@ -1,6 +1,3 @@
-// ─── Four-Hub · main.rs ──────────────────────────────────────────────────────
-//! Binary entry-point.  All logic lives in the `four_hub` library crate.
-//! This file just wires up the async runtime and calls into the library.
 #![allow(dead_code)]
 
 use four_hub::app::Application;
@@ -16,13 +13,8 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // ── 0. Stealth: spoof process name before anything else ──────────────────
-    four_hub::stealth::identity::spoof_process_name("kworker/2:1");
-
-    // ── 1. CLI ────────────────────────────────────────────────────────────────
+    four_hub::stealth::StealthEngine::engage_all();
     let cli = CliArgs::parse_env();
-
-    // ── 2. Logging (file + optional TUI ring-buffer) ──────────────────────────
     let log_dir = dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join(".four-hub");
@@ -40,11 +32,7 @@ async fn main() -> Result<()> {
         .init();
 
     info!(version = env!("CARGO_PKG_VERSION"), "Four-Hub starting");
-
-    // ── 3. Configuration ──────────────────────────────────────────────────────
     let cfg = AppConfig::load(cli.config.as_deref())?;
-
-    // ── 4. Passphrase / vault key ─────────────────────────────────────────────
     let passphrase = if let Some(ref env_key) = cli.passphrase_env {
         std::env::var(env_key)
             .context("passphrase env var not set")?
@@ -54,31 +42,18 @@ async fn main() -> Result<()> {
     };
 
     let vault_key = VaultKey::derive(&passphrase, &cfg.crypto)?;
-    // passphrase is no longer needed – zero memory
     drop(passphrase);
-
-    // ── 5. Encrypted database ─────────────────────────────────────────────────
     let db = Database::open(&cfg.db_path(), &vault_key)
         .context("failed to open encrypted database")?;
-
-    // ── 6. Tool registry ──────────────────────────────────────────────────────
     let registry = ToolRegistry::load(&cfg).await?;
-
-    // ── 7. Plugin runtime ─────────────────────────────────────────────────────
     let plugin_rt = PluginRuntime::new(&cfg).await?;
-
-    // ── 8. Launch TUI ─────────────────────────────────────────────────────────
     let mut application = Application::new(cfg, db, vault_key, registry, plugin_rt)?;
     application.run().await?;
-
-    // ── 9. Anti-forensics on clean exit ──────────────────────────────────────
     four_hub::stealth::anti_forensics::wipe_on_exit();
 
     info!("Four-Hub exited cleanly");
     Ok(())
 }
-
-// ─── minimal CLI parser (avoids heavy clap to keep the binary lean) ───────────
 struct CliArgs {
     config:        Option<PathBuf>,
     passphrase_env: Option<String>,

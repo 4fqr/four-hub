@@ -1,5 +1,3 @@
-// ─── Four-Hub · tui/widgets/dashboard.rs ─────────────────────────────────────
-//! Dashboard — the first view: a live ops overview of the entire session.
 
 use crate::{
     db::Severity,
@@ -22,8 +20,6 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
     render_chart(f, lo.chart, state);
 }
 
-// ── Left overview panel ───────────────────────────────────────────────────────
-
 fn render_overview(f: &mut Frame, area: Rect, state: &AppState) {
     let crit_count = state.findings.iter().filter(|fi| fi.severity == Severity::Critical).count();
     let high_count = state.findings.iter().filter(|fi| fi.severity == Severity::High).count();
@@ -41,7 +37,6 @@ fn render_overview(f: &mut Frame, area: Rect, state: &AppState) {
 
     let mut lines = vec![
         Line::raw(""),
-        // ── Project ──────────────────────────────────────────────────────────
         Line::from(vec![
             Span::styled("  PROJECT ", theme::style_dim()),
             Span::styled(&state.cfg.general.project_name, theme::style_neon_pink()),
@@ -52,7 +47,6 @@ fn render_overview(f: &mut Frame, area: Rect, state: &AppState) {
         ]),
         Line::from(Span::styled("  ─────────────────────────", theme::style_dim())),
         Line::raw(""),
-        // ── Discovered assets ────────────────────────────────────────────────
         Line::from(Span::styled("  ASSETS", theme::style_accent())),
         Line::from(vec![
             Span::styled("  ◆ HOSTS       ", theme::style_dim()),
@@ -63,7 +57,6 @@ fn render_overview(f: &mut Frame, area: Rect, state: &AppState) {
             Span::styled(state.db_stats.ports.to_string(), theme::style_accent()),
         ]),
         Line::raw(""),
-        // ── Findings breakdown ───────────────────────────────────────────────
         Line::from(Span::styled("  FINDINGS", theme::style_accent())),
         Line::from(vec![
             Span::styled("  ◆ TOTAL       ", theme::style_dim()),
@@ -138,8 +131,6 @@ fn render_overview(f: &mut Frame, area: Rect, state: &AppState) {
     f.render_widget(para, area);
 }
 
-// ── Running jobs table ────────────────────────────────────────────────────────
-
 fn render_jobs(f: &mut Frame, area: Rect, state: &AppState) {
     let rows: Vec<Row> = state
         .jobs
@@ -205,9 +196,6 @@ fn render_jobs(f: &mut Frame, area: Rect, state: &AppState) {
     .highlight_style(theme::style_selected())
     .highlight_symbol("▶ ")
     .style(theme::style_panel());
-
-    // Connect the real selected_job index to TableState.
-    // Jobs are shown reversed so invert the index.
     let sel = state.selected_job.map(|i| {
         let n = state.jobs.len();
         if n == 0 { 0 } else { n.saturating_sub(1).saturating_sub(i) }
@@ -215,8 +203,6 @@ fn render_jobs(f: &mut Frame, area: Rect, state: &AppState) {
     let mut ts = TableState::default().with_selected(sel);
     f.render_stateful_widget(table, area, &mut ts);
 }
-
-// ── Recent findings list ──────────────────────────────────────────────────────
 
 fn render_findings(f: &mut Frame, area: Rect, state: &AppState) {
     let visible_findings: Vec<_> = if state.search_active && !state.search_query.is_empty() {
@@ -269,8 +255,6 @@ fn render_findings(f: &mut Frame, area: Rect, state: &AppState) {
     let mut ls = ListState::default().with_selected(state.selected_finding);
     f.render_stateful_widget(list, area, &mut ls);
 }
-
-// ── Severity chart ────────────────────────────────────────────────────────────
 
 fn render_chart(f: &mut Frame, area: Rect, state: &AppState) {
     let data: Vec<(&str, u64)> = vec![

@@ -1,5 +1,3 @@
-// ─── Four-Hub · tui/widgets/terminal.rs ──────────────────────────────────────
-//! Embedded terminal widget – renders buffered output + input line.
 
 use crate::tui::{app_state::AppState, theme};
 use ratatui::{
@@ -21,7 +19,6 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_output(f: &mut Frame, area: Rect, state: &AppState) {
-    // Show the last N lines that fit in the area.
     let visible = (area.height as usize).saturating_sub(2);
     let lines: Vec<ListItem> = state
         .terminal
@@ -47,8 +44,6 @@ fn render_output(f: &mut Frame, area: Rect, state: &AppState) {
             ListItem::new(Span::styled(l.clone(), style))
         })
         .collect();
-
-    // Show active job info in the title
     let active_job = state.jobs.iter().rev().find(|j| !j.finished);
     let title = if let Some(job) = active_job {
         format!(" ◆ TERMINAL — running: {} ▶ {} ", job.tool, job.target)

@@ -1,6 +1,3 @@
-// ─── Four-Hub · tools/executor.rs ────────────────────────────────────────────
-//! Async tool execution engine.  Each tool runs in a tokio task;
-//! stdout/stderr lines are streamed into the event bus.
 
 use crate::{
     db::{Database, ScanJob},
@@ -22,16 +19,12 @@ use tokio::{
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-// ── A handle to a running job ─────────────────────────────────────────────────
-
 struct JobHandle {
     child:   Child,
     spec:    ToolSpec,
     target:  String,
     output:  Vec<String>,
 }
-
-// ── ToolExecutor ─────────────────────────────────────────────────────────────
 
 pub struct ToolExecutor {
     db:        Arc<Database>,
@@ -50,20 +43,13 @@ impl ToolExecutor {
     ) -> Self {
         Self { db, registry, event_tx, plugin_rt, jobs: DashMap::new() }
     }
-
-    /// Spawn a new tool process.  Returns the job UUID.
     pub async fn launch(&self, spec: &ToolSpec, target: String) -> Result<String> {
         let job_id = Uuid::new_v4().to_string();
-
-        // Determine argv.
         let argv = spec.build_argv(&target, "proxychains4", false);
         if argv.is_empty() {
             bail!("empty argv for tool {}", spec.name);
         }
-
-        // Check binary is present.
         if which::which(&argv[0]).is_err() {
-            // Prompt user to install (send a notification; don't fail fatally).
             let _ = self.event_tx.send(AppEvent::Notification {
                 level:   NotifLevel::Warning,
                 message: format!("'{}' not found – run: sudo apt install {}", argv[0], spec.binary),
@@ -84,8 +70,6 @@ impl ToolExecutor {
         if let Err(e) = self.db.insert_job(&job) {
             warn!(err = %e, "could not persist job");
         }
-
-        // Build child process.
         let mut cmd = Command::new(&argv[0]);
         if argv.len() > 1 { cmd.args(&argv[1..]); }
         cmd.stdout(std::process::Stdio::piped())
@@ -111,12 +95,8 @@ impl ToolExecutor {
 
         let handle = tokio::spawn(async move {
             let mut all_output = Vec::<String>::new();
-            // address → host_id for port linkage
             let mut addr_to_hid: HashMap<String, String> = HashMap::new();
-
-            // Read stdout.
             let mut out_reader = BufReader::new(stdout).lines();
-            // Read stderr.
             let mut err_reader = BufReader::new(stderr).lines();
 
             loop {
@@ -126,7 +106,6 @@ impl ToolExecutor {
                             Ok(Some(l)) => {
                                 let _ = etx.send(AppEvent::ToolOutput { id: jid.clone(), line: l.clone() });
                                 all_output.push(l.clone());
-                                // Live parse → dispatch all record types.
                                 for rec in parser::parse_line(&spec2, &l, &tgt2) {
                                     match rec {
                                         ParsedRecord::Finding(f) => {
@@ -166,8 +145,6 @@ impl ToolExecutor {
                     }
                 }
             }
-
-            // Wait for exit.
             let output_str = all_output.join("\n");
             let exit_code = child
                 .wait()
@@ -178,8 +155,6 @@ impl ToolExecutor {
             if let Err(e) = db.finish_job(&jid, exit_code, &output_str) {
                 warn!(err = %e, "could not update job status");
             }
-
-            // Post-process nmap XML for full port/host data.
             if spec2.name == "nmap" {
                 let xml_path = format!("/tmp/fh_nmap_{tgt2}.xml");
                 for rec in parser::parse_nmap_xml(&xml_path, &tgt2) {
@@ -213,8 +188,6 @@ impl ToolExecutor {
         self.jobs.insert(job_id.clone(), handle.abort_handle());
         Ok(job_id)
     }
-
-    /// Kill a running job.
     pub async fn kill(&self, job_id: &str) -> Result<()> {
         if let Some((_, abort)) = self.jobs.remove(job_id) {
             abort.abort();
@@ -223,8 +196,6 @@ impl ToolExecutor {
         }
         Ok(())
     }
-
-    /// Delegate to registry find.
     pub fn registry_find(&self, name: &str) -> Option<crate::tools::spec::ToolSpec> {
         self.registry.find(name)
     }

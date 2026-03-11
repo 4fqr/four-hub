@@ -1,5 +1,3 @@
-// ─── Four-Hub · tui/app_state.rs ─────────────────────────────────────────────
-//! Central UI state – every widget reads from this struct.
 
 use crate::{
     config::AppConfig,
@@ -8,11 +6,8 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use crossterm::event::KeyEvent;
-// (parking_lot::RwLock removed — interior mutability not needed here)
 use std::collections::HashMap;
 use std::sync::Arc;
-
-// ── Active view ───────────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveView {
     Dashboard,
@@ -33,8 +28,6 @@ impl ActiveView {
         }
     }
 }
-
-// ── Notification ──────────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotifLevel { Info, Success, Warning, Error }
 
@@ -44,8 +37,6 @@ pub struct Notification {
     pub message: String,
     pub at:      DateTime<Utc>,
 }
-
-// ── Running job ───────────────────────────────────────────────────────────────
 #[derive(Debug, Clone)]
 pub struct RunningJob {
     pub id:       String,
@@ -56,12 +47,8 @@ pub struct RunningJob {
     pub exit_code: Option<i32>,
     pub output:   Vec<String>,
 }
-
-// ── Panel focus ───────────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Panel { Left, Right, Top, Bottom }
-
-// ── AppState ──────────────────────────────────────────────────────────────────
 pub struct AppState {
     pub cfg:           AppConfig,
     pub db:            Arc<Database>,
@@ -69,8 +56,6 @@ pub struct AppState {
     pub panel:         Panel,
     pub term_width:    u16,
     pub term_height:   u16,
-
-    // ── Data caches (refreshed on Tick) ──────────────────────────────────────
     pub db_stats:      DbStats,
     pub hosts:         Vec<Host>,
     pub selected_host: Option<usize>,
@@ -78,9 +63,6 @@ pub struct AppState {
     pub selected_port: Option<usize>,
     pub findings:      Vec<Finding>,
     pub selected_finding: Option<usize>,
-
-    // ── Tool launcher state ───────────────────────────────────────────────────
-    /// Full map category → tools populated from the registry at startup.
     pub all_tools:          HashMap<String, Vec<ToolSpec>>,
     pub tool_categories:    Vec<String>,
     pub selected_category:  usize,
@@ -88,36 +70,18 @@ pub struct AppState {
     pub selected_tool:      usize,
     pub tool_target_input:  String,
     pub current_target:     String,
-
-    // ── Running jobs ─────────────────────────────────────────────────────────
     pub jobs:          Vec<RunningJob>,
     pub selected_job:  Option<usize>,
-
-    // ── Notifications ─────────────────────────────────────────────────────────
     pub notifications: Vec<Notification>,
     pub latest_notif:  Option<Notification>,
-
-    // ── Popup / modal ─────────────────────────────────────────────────────────
     pub popup:         Option<PopupKind>,
-
-    // ── Embedded terminal widget ──────────────────────────────────────────────
     pub terminal:      EmbeddedTermState,
-
-    // ── Inspector ────────────────────────────────────────────────────────────
     pub inspector_finding: Option<Finding>,
     pub inspector_scroll:  u16,
-
-    // ── Search ────────────────────────────────────────────────────────────────
     pub search_query:  String,
     pub search_active: bool,
-
-    // ── Scroll offsets ────────────────────────────────────────────────────────
     pub scroll_offset: usize,
-
-    // ── Drag split state ──────────────────────────────────────────────────────
     pub split_x:       u16,
-
-    // ── Pending terminal command (set by key handler, consumed by run loop) ───
     pub pending_terminal_cmd: Option<String>,
 }
 
@@ -147,8 +111,6 @@ pub enum ContextAction {
     CopyText(String),
     OpenInspector,
 }
-
-// ── Embedded terminal ─────────────────────────────────────────────────────────
 #[derive(Debug, Default)]
 pub struct EmbeddedTermState {
     pub lines:    Vec<String>,
@@ -199,8 +161,6 @@ impl AppState {
         }
     }
 
-    // ── View ──────────────────────────────────────────────────────────────────
-
     pub fn set_view(&mut self, v: ActiveView) {
         self.active_view   = v;
         self.scroll_offset = 0;
@@ -208,20 +168,15 @@ impl AppState {
 
     pub fn active_view(&self) -> ActiveView { self.active_view }
 
-    // ── Terminal size ─────────────────────────────────────────────────────────
-
     pub fn resize(&mut self, w: u16, h: u16) {
         self.term_width  = w;
         self.term_height = h;
     }
 
-    // ── Stats refresh (called on Tick) ────────────────────────────────────────
-
     pub async fn update_stats(&mut self, db: &Database) {
         if let Ok(s) = db.stats() { self.db_stats = s; }
         if let Ok(h) = db.all_hosts() { self.hosts = h; }
         if let Ok(f) = db.all_findings() { self.findings = f; }
-        // Load ports for the selected host.
         if let Some(idx) = self.selected_host {
             if let Some(host) = self.hosts.get(idx) {
                 let hid = host.id.clone();
@@ -234,8 +189,6 @@ impl AppState {
         }
     }
 
-    // ── Notifications ─────────────────────────────────────────────────────────
-
     pub fn push_notification(&mut self, level: NotifLevel, message: String) {
         let n = Notification { level, message: message.clone(), at: Utc::now() };
         self.latest_notif = Some(n.clone());
@@ -244,8 +197,6 @@ impl AppState {
             self.notifications.remove(0);
         }
     }
-
-    // ── Jobs ──────────────────────────────────────────────────────────────────
 
     pub fn register_job(&mut self, job_id: String, tool_name: String) {
         self.jobs.push(RunningJob {
@@ -283,8 +234,6 @@ impl AppState {
         }
     }
 
-    // ── Findings ──────────────────────────────────────────────────────────────
-
     pub fn push_finding(&mut self, f: Finding) {
         self.findings.insert(0, f);
         if self.findings.len() > 10_000 {
@@ -302,8 +251,6 @@ impl AppState {
         }
     }
 
-    // ── Tool launcher ─────────────────────────────────────────────────────────
-
     pub fn selected_tool_spec(&self) -> Option<&ToolSpec> {
         self.tools_in_category.get(self.selected_tool)
     }
@@ -311,8 +258,6 @@ impl AppState {
     pub fn current_target(&self) -> &String { &self.current_target }
 
     pub fn project_name(&self) -> String { self.cfg.general.project_name.clone() }
-
-    // ── Category navigation (Launcher view) ───────────────────────────────────
 
     pub fn set_category_idx(&mut self, idx: usize) {
         if idx < self.tool_categories.len() {
@@ -338,8 +283,6 @@ impl AppState {
         let idx = (self.selected_category + 1) % self.tool_categories.len();
         self.set_category_idx(idx);
     }
-
-    // ── Navigation ────────────────────────────────────────────────────────────
 
     pub fn select_prev(&mut self) {
         match self.active_view {
@@ -449,12 +392,8 @@ impl AppState {
     pub fn scroll_top(&mut self)    { self.scroll_offset = 0; }
     pub fn scroll_bottom(&mut self) { self.scroll_offset = usize::MAX / 2; }
 
-    // ── Click / drag ─────────────────────────────────────────────────────────
-
     pub fn click(&mut self, col: u16, row: u16) {
         const STATUSBAR_H: u16 = 3;
-
-        // ── Tab bar ───────────────────────────────────────────────────────────
         if row < STATUSBAR_H {
             let w = (self.term_width / 5).max(1);
             self.active_view = match (col / w).min(4) {
@@ -467,8 +406,6 @@ impl AppState {
             };
             return;
         }
-
-        // ── Content area ──────────────────────────────────────────────────────
         let content_row = row.saturating_sub(STATUSBAR_H);
 
         match self.active_view {
@@ -531,18 +468,12 @@ impl AppState {
         self.split_x = col;
     }
 
-    // ── Popups ────────────────────────────────────────────────────────────────
-
     pub fn dismiss_popup(&mut self) { self.popup = None; }
-
-    // ── Search ────────────────────────────────────────────────────────────────
 
     pub fn open_search(&mut self) {
         self.search_active = true;
         self.search_query.clear();
     }
-
-    // ── Embedded terminal ─────────────────────────────────────────────────────
 
     pub fn terminal_focused(&self) -> bool {
         self.active_view == ActiveView::Terminal && self.terminal.focused

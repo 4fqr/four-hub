@@ -1,5 +1,3 @@
-// ─── Four-Hub · reporting/html.rs ────────────────────────────────────────────
-//! Export all findings to a self-contained, styled HTML report.
 
 use crate::db::{Finding, Severity};
 use anyhow::Result;

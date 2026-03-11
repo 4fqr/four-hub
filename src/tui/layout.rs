@@ -1,9 +1,5 @@
-// ─── Four-Hub · tui/layout.rs ────────────────────────────────────────────────
-//! Responsive layout computation for all views.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-
-/// The global chrome: top status bar + middle content + bottom help bar.
 pub struct RootLayout {
     pub statusbar: Rect,
     pub content:   Rect,
@@ -30,9 +26,6 @@ impl RootLayout {
         }
     }
 }
-
-/// Dashboard layout: left sidebar (stats) + right main area split into
-/// top (live jobs) and bottom (recent findings).
 pub struct DashboardLayout {
     pub stats:    Rect,
     pub jobs:     Rect,
@@ -62,8 +55,6 @@ impl DashboardLayout {
         }
     }
 }
-
-/// Tool Launcher: left category tree + right tool list + bottom detail pane.
 pub struct LauncherLayout {
     pub categories: Rect,
     pub tools:      Rect,
@@ -87,8 +78,6 @@ impl LauncherLayout {
         }
     }
 }
-
-/// Workspace: host list left, port table top-right, finding list bottom-right.
 pub struct WorkspaceLayout {
     pub hosts:    Rect,
     pub ports:    Rect,
@@ -108,8 +97,6 @@ impl WorkspaceLayout {
         Self { hosts: h[0], ports: right[0], findings: right[1] }
     }
 }
-
-/// Inspector: header + scrollable body + evidence panel.
 pub struct InspectorLayout {
     pub header:   Rect,
     pub body:     Rect,
@@ -129,8 +116,6 @@ impl InspectorLayout {
         Self { header: v[0], body: v[1], evidence: v[2] }
     }
 }
-
-/// Centre a rectangle of `width × height` inside `area`.
 pub fn centre_rect(width: u16, height: u16, area: Rect) -> Rect {
     let x = area.x.saturating_add(area.width.saturating_sub(width) / 2);
     let y = area.y.saturating_add(area.height.saturating_sub(height) / 2);

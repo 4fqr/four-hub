@@ -1,5 +1,3 @@
-// ─── Four-Hub · tools/workflow.rs ────────────────────────────────────────────
-//! Pre-defined multi-tool workflows that run sequentially or in parallel.
 
 use crate::tools::{executor::ToolExecutor, registry::ToolRegistry};
 use anyhow::Result;
@@ -7,24 +5,18 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::info;
-
-/// How tools within a workflow stage execute.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Concurrency {
     Sequential,
     Parallel,
 }
-
-/// A named stage inside a workflow (one or more tools).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowStage {
     pub name:        String,
     pub tools:       Vec<String>,
     pub concurrency: Concurrency,
 }
-
-/// A complete workflow descriptor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workflow {
     pub name:        String,
@@ -33,7 +25,6 @@ pub struct Workflow {
 }
 
 impl Workflow {
-    /// Execute the workflow against `target`.
     pub async fn run(
         &self,
         target:   &str,
@@ -70,7 +61,6 @@ impl Workflow {
                                 Ok(jid) => { all_job_ids.push(jid); }
                                 Err(e)  => { tracing::warn!(err=%e, tool=%tool_name, "workflow tool failed"); }
                             }
-                            // Small gap between sequential launches.
                             tokio::time::sleep(Duration::from_millis(500)).await;
                         }
                     }
@@ -81,8 +71,6 @@ impl Workflow {
         Ok(all_job_ids)
     }
 }
-
-/// Return the set of pre-defined workflows.
 pub fn builtin_workflows() -> Vec<Workflow> {
     vec![
         Workflow {

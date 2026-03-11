@@ -1,5 +1,3 @@
-// ─── Four-Hub · db/schema.rs ─────────────────────────────────────────────────
-//! DDL: create tables if they do not yet exist.
 
 use anyhow::Result;
 use rusqlite::Connection;

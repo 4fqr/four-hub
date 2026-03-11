@@ -1,5 +1,3 @@
-// ─── Four-Hub · tui/renderer.rs ──────────────────────────────────────────────
-//! Sets up the raw-mode terminal and orchestrates per-frame rendering.
 
 use crate::tui::{
     app_state::{ActiveView, AppState, NotifLevel, PopupKind},
@@ -36,8 +34,6 @@ impl Renderer {
         let terminal = Terminal::new(backend)?;
         Ok(Self { terminal })
     }
-
-    /// Enter raw mode + alternate screen.
     pub fn enter(&mut self) -> Result<()> {
         enable_raw_mode()?;
         execute!(
@@ -49,8 +45,6 @@ impl Renderer {
         self.terminal.clear()?;
         Ok(())
     }
-
-    /// Leave raw mode + alternate screen.
     pub fn leave(&mut self) -> Result<()> {
         disable_raw_mode()?;
         execute!(
@@ -61,15 +55,11 @@ impl Renderer {
         )?;
         Ok(())
     }
-
-    /// Render a single frame.
     pub fn draw(&mut self, state: &AppState) -> Result<()> {
         self.terminal.draw(|f| render_frame(f, state))?;
         Ok(())
     }
 }
-
-// ── Frame renderer ────────────────────────────────────────────────────────────
 
 fn render_frame(f: &mut Frame, state: &AppState) {
     let root  = RootLayout::compute(f.size());
@@ -85,15 +75,11 @@ fn render_frame(f: &mut Frame, state: &AppState) {
         ActiveView::Inspector    => widgets::inspector::render(f, root.content, state),
         ActiveView::Terminal     => widgets::terminal::render(f, root.content, state),
     }
-
-    // Overlay popups / modals on top.
     if let Some(popup) = &state.popup {
         let area = f.size();
         render_popup(f, area, popup, state);
     }
 }
-
-// ── Status bar ────────────────────────────────────────────────────────────────
 
 fn render_statusbar(f: &mut Frame, area: Rect, state: &AppState) {
     let titles: Vec<Line> = [
@@ -156,8 +142,6 @@ fn render_statusbar(f: &mut Frame, area: Rect, state: &AppState) {
     f.render_widget(tabs, area);
 }
 
-// ── Help bar ──────────────────────────────────────────────────────────────────
-
 fn render_helpbar(f: &mut Frame, area: Rect, state: &AppState) {
     let spans: Vec<Span> = match state.active_view {
         ActiveView::Dashboard => vec![
@@ -211,8 +195,6 @@ fn render_helpbar(f: &mut Frame, area: Rect, state: &AppState) {
     f.render_widget(para, area);
 }
 
-// ── Notification strip ────────────────────────────────────────────────────────
-
 fn render_notifbar(f: &mut Frame, area: Rect, state: &AppState) {
     let (msg, style) = match &state.latest_notif {
         None => ("".to_string(), theme::style_dim()),
@@ -235,9 +217,7 @@ fn render_notifbar(f: &mut Frame, area: Rect, state: &AppState) {
     f.render_widget(Paragraph::new(msg).style(style), area);
 }
 
-// ── Popup overlay ─────────────────────────────────────────────────────────────
-
-fn render_popup(f: &mut Frame, area: Rect, popup: &PopupKind, _state: &AppState) {
+fn render_popup(f: &mut Frame, area: Rect, popup: &PopupKind, state: &AppState) {
     match popup {
         PopupKind::Help => {
             let rect = centre_rect(60, 20, area);
@@ -327,22 +307,28 @@ fn render_popup(f: &mut Frame, area: Rect, popup: &PopupKind, _state: &AppState)
         }
 
         PopupKind::TargetInput { query } => {
-            let rect = centre_rect(58, 5, area);
+            let rect = centre_rect(58, 7, area);
             f.render_widget(Clear, rect);
-            // Append a blinking-block cursor character so the user can see where they're typing.
+            let hint = state.selected_tool_spec()
+                .map(|s| format!("  Hint: {}", s.effective_hint()))
+                .unwrap_or_default();
             let display = format!("{query}█");
-            let para = Paragraph::new(display.as_str())
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .border_set(theme::BORDER_SET)
-                        .border_style(theme::style_border_focused())
-                        .title(Span::styled(
-                            " ◆ SET TARGET  [Enter] Confirm   [Esc] Cancel   [Del] Clear ",
-                            theme::style_title(),
-                        )),
-                )
-                .style(theme::style_popup());
+            let para = Paragraph::new(vec![
+                Line::from(Span::styled(hint, theme::style_dim())),
+                Line::raw(""),
+                Line::from(Span::styled(display, theme::style_warning())),
+            ])
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(theme::BORDER_SET)
+                    .border_style(theme::style_border_focused())
+                    .title(Span::styled(
+                        " ◆ SET TARGET  [Enter] Confirm   [Esc] Cancel   [Del] Clear ",
+                        theme::style_title(),
+                    )),
+            )
+            .style(theme::style_popup());
             f.render_widget(para, rect);
         }
 

@@ -1,11 +1,7 @@
-// ─── Four-Hub · config.rs ────────────────────────────────────────────────────
-//! Application-wide configuration loaded from `config.toml`.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-
-// ─── Top-level config ──────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
@@ -25,8 +21,6 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    /// Load from `path`, falling back to `~/.config/four-hub/config.toml`,
-    /// then to built-in defaults.
     pub fn load(path: Option<&Path>) -> Result<Self> {
         let resolved = path
             .map(PathBuf::from)
@@ -46,8 +40,6 @@ impl AppConfig {
 
         Ok(AppConfig::default())
     }
-
-    /// Path to the encrypted database file.
     pub fn db_path(&self) -> PathBuf {
         if self.general.db_path.as_os_str().is_empty() {
             dirs::data_local_dir()
@@ -58,8 +50,6 @@ impl AppConfig {
             self.general.db_path.clone()
         }
     }
-
-    /// Directory that contains custom tool TOML manifests.
     pub fn tools_dir(&self) -> PathBuf {
         if self.general.tools_dir.as_os_str().is_empty() {
             PathBuf::from("/usr/share/four-hub/tools")
@@ -67,8 +57,6 @@ impl AppConfig {
             self.general.tools_dir.clone()
         }
     }
-
-    /// Directory of Python plugin scripts.
     pub fn plugins_dir(&self) -> PathBuf {
         if self.general.plugins_dir.as_os_str().is_empty() {
             dirs::config_dir()
@@ -94,8 +82,6 @@ impl Default for AppConfig {
         }
     }
 }
-
-// ─── Section: general ─────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneralConfig {
     #[serde(default)]
@@ -120,20 +106,14 @@ impl Default for GeneralConfig {
         }
     }
 }
-
-// ─── Section: crypto ──────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CryptoConfig {
-    /// Argon2id memory cost in KiB (default 65536 = 64 MiB).
     #[serde(default = "default_argon2_mem")]
     pub argon2_memory_kib: u32,
-    /// Argon2id time cost (iterations).
     #[serde(default = "default_argon2_time")]
     pub argon2_time:       u32,
-    /// Argon2id parallelism.
     #[serde(default = "default_argon2_parallel")]
     pub argon2_parallel:   u32,
-    /// Random 16-byte salt encoded as hex; generated on first run if empty.
     #[serde(default)]
     pub salt_hex:          String,
 }
@@ -152,20 +132,14 @@ impl Default for CryptoConfig {
         }
     }
 }
-
-// ─── Section: network ─────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkConfig {
-    /// Route spawned tools through proxychains.
     #[serde(default = "true_default")]
     pub use_proxychains:  bool,
-    /// Path to proxychains binary.
     #[serde(default = "default_proxychains_bin")]
     pub proxychains_bin:  String,
-    /// Randomise MAC address on session start (requires root).
     #[serde(default = "true_default")]
     pub randomise_mac:    bool,
-    /// Network interface to spoof MAC on.
     #[serde(default = "default_iface")]
     pub mac_interface:    String,
 }
@@ -184,8 +158,6 @@ impl Default for NetworkConfig {
         }
     }
 }
-
-// ─── Section: stealth ─────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StealthConfig {
     #[serde(default = "true_default")]
@@ -213,8 +185,6 @@ impl Default for StealthConfig {
         }
     }
 }
-
-// ─── Section: UI ──────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiConfig {
     #[serde(default = "default_theme")]
@@ -241,8 +211,6 @@ impl Default for UiConfig {
         }
     }
 }
-
-// ─── Section: REST API ────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiConfig {
     #[serde(default)]
@@ -260,8 +228,6 @@ impl Default for ApiConfig {
         Self { enabled: false, bind: default_api_addr(), api_key: String::new() }
     }
 }
-
-// ─── Section: logging ─────────────────────────────────────────────────────
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoggingConfig {
     #[serde(default = "default_log_level")]

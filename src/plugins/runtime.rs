@@ -1,8 +1,3 @@
-// ─── Four-Hub · plugins/runtime.rs ───────────────────────────────────────────
-//! Python-powered plugin runtime via PyO3.
-//! Plugins are Python scripts in `<plugins_dir>/` that export hook functions:
-//!   - `on_new_finding(finding: dict)  -> None`
-//!   - `on_tool_finished(job_id: str, exit_code: int) -> None`
 
 use crate::{config::AppConfig, db::Finding};
 use anyhow::Result;
@@ -11,12 +6,10 @@ use std::{collections::HashMap, path::PathBuf};
 use tracing::{error, info, warn};
 
 pub struct PluginRuntime {
-    /// Map plugin_name → compiled module object.
     plugins: HashMap<String, Py<PyModule>>,
 }
 
 impl PluginRuntime {
-    /// Load all `.py` plugins from `cfg.plugins_dir()`.
     pub async fn new(cfg: &AppConfig) -> Result<Self> {
         let dir = cfg.plugins_dir();
         let mut plugins = HashMap::new();
@@ -47,8 +40,6 @@ impl PluginRuntime {
 
         Ok(Self { plugins })
     }
-
-    /// Fire `on_new_finding` for all plugins.
     pub async fn fire_new_finding(&self, finding: &Finding) -> Result<()> {
         let fdict = finding_to_dict(finding);
         Python::with_gil(|py| {
@@ -62,8 +53,6 @@ impl PluginRuntime {
         });
         Ok(())
     }
-
-    /// Fire `on_tool_finished` for all plugins.
     pub async fn fire_tool_finished(&self, job_id: &str, exit_code: i32) -> Result<()> {
         Python::with_gil(|py| {
             for (name, module) in &self.plugins {

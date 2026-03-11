@@ -1,10 +1,6 @@
-// ─── Four-Hub · src/pcap_ffi.rs ───────────────────────────────────────────────
-//! Safe Rust wrapper for the C packet capture extension (libpcap).
 
 use anyhow::{bail, Result};
 use std::ffi::{CStr, CString};
-
-// ── Raw FFI declarations ──────────────────────────────────────────────────────
 
 const FH_SNAPLEN: usize = 65535;
 
@@ -45,18 +41,10 @@ extern "C" {
         ps_drop: *mut u64,
     );
 }
-
-// ── Safe wrapper ─────────────────────────────────────────────────────────────
-
-/// A live packet capture session on one network interface.
 pub struct CaptureSession {
     handle: *mut FhCapture,
 }
-
-// Safety: The handle is not shared across threads in this single-producer design.
 unsafe impl Send for CaptureSession {}
-
-/// A single captured packet.
 #[derive(Debug)]
 pub struct Packet {
     pub ts_sec:  u64,
@@ -67,7 +55,6 @@ pub struct Packet {
 }
 
 impl CaptureSession {
-    /// Open a live capture on `iface`.  `promisc = true` enables promiscuous mode.
     pub fn open(iface: &str, promisc: bool) -> Result<Self> {
         let c_iface = CString::new(iface)?;
         let mut errbuf = vec![0i8; 256];
@@ -90,8 +77,6 @@ impl CaptureSession {
 
         Ok(Self { handle })
     }
-
-    /// Apply a BPF `filter` string (e.g. `"tcp port 80"`).
     pub fn set_filter(&self, filter: &str) -> Result<()> {
         let c_filter = CString::new(filter)?;
         let rc = unsafe { fh_capture_set_filter(self.handle, c_filter.as_ptr()) };
@@ -100,9 +85,6 @@ impl CaptureSession {
         }
         Ok(())
     }
-
-    /// Block until the next packet arrives (up to ~1 s).
-    /// Returns `None` on timeout, `Some(Packet)` on success.
     pub fn next_packet(&self) -> Result<Option<Packet>> {
         let mut raw = std::mem::MaybeUninit::<FhPacketT>::uninit();
         let rc = unsafe { fh_capture_next(self.handle, raw.as_mut_ptr()) };
@@ -122,8 +104,6 @@ impl CaptureSession {
             _  => bail!("pcap_next_ex error"),
         }
     }
-
-    /// Return `(received, dropped)` packet counts.
     pub fn stats(&self) -> (u64, u64) {
         let (mut recv, mut drop) = (0u64, 0u64);
         unsafe { fh_capture_stats(self.handle, &mut recv, &mut drop); }

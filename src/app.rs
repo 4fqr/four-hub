@@ -1,6 +1,3 @@
-// ─── Four-Hub · app.rs ───────────────────────────────────────────────────────
-//! Top-level application orchestrator.  Owns the event-loop, drives the TUI
-//! renderer, dispatches keyboard/mouse events, and coordinates all subsystems.
 
 use crate::{
     config::AppConfig,
@@ -19,8 +16,6 @@ use crossterm::event::{Event, KeyCode, KeyModifiers, MouseEventKind};
 use std::{sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{error, info};
-
-/// Main application struct – owns all subsystems.
 pub struct Application {
     state:     AppState,
     renderer:  Renderer,
@@ -42,7 +37,6 @@ impl Application {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let db = Arc::new(db);
         let plugin_rt = Arc::new(plugin_rt);
-        // Extract registry data BEFORE the registry is consumed by the executor.
         let all_tools_map = registry.export_all();
         let categories: Vec<String> = {
             let mut cats: Vec<String> = all_tools_map.keys().cloned().collect();
@@ -76,12 +70,8 @@ impl Application {
             db,
         })
     }
-
-    /// Main run loop – drives TUI + event dispatch until the user quits.
     pub async fn run(&mut self) -> Result<()> {
         self.renderer.enter()?;
-
-        // Spawn crossterm event reader.
         let event_tx = self.event_tx.clone();
         tokio::spawn(async move {
             let mut reader = EventStream::new();
@@ -99,8 +89,6 @@ impl Application {
                 }
             }
         });
-
-        // Spawn 1 Hz ticker for live stats refresh.
         let tick_tx = self.event_tx.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(500));
@@ -111,13 +99,8 @@ impl Application {
                 }
             }
         });
-
-        // Main event dispatch loop.
         loop {
-            // Draw frame.
             self.renderer.draw(&self.state)?;
-
-            // Wait for next event (with timeout so we always redraw).
             let Some(event) = self.event_rx.recv().await else {
                 break;
             };
@@ -125,7 +108,6 @@ impl Application {
             match event {
                 AppEvent::Tick => {
                     self.state.update_stats(&self.db).await;
-                    // Execute any pending shell command from the embedded terminal.
                     if let Some(cmd) = self.state.pending_terminal_cmd.take() {
                         self.run_shell_cmd(cmd).await;
                     }
@@ -133,7 +115,6 @@ impl Application {
 
                 AppEvent::ToolOutput { id, line } => {
                     self.state.append_tool_output(&id, line.clone());
-                    // Mirror all tool output to the embedded terminal.
                     self.state.push_terminal_line(line);
                 }
 
@@ -180,8 +161,6 @@ impl Application {
         Ok(())
     }
 
-    // ── shell execution ───────────────────────────────────────────────────────
-
     async fn run_shell_cmd(&mut self, cmd: String) {
         use tokio::io::{AsyncBufReadExt, BufReader};
         use tokio::process::Command;
@@ -222,8 +201,6 @@ impl Application {
         }
     }
 
-    // ── event routing ─────────────────────────────────────────────────────────
-
     async fn handle_terminal_event(&mut self, ev: Event) -> Result<bool> {
         match ev {
             Event::Key(key)    => self.handle_key(key).await,
@@ -233,15 +210,10 @@ impl Application {
         }
     }
 
-    // ── key handling — popup takes full priority ───────────────────────────────
-
     async fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> Result<bool> {
-        // 1. Any open popup captures ALL keys.
         if self.state.popup.is_some() {
             return self.handle_popup_key(key).await;
         }
-
-        // 2. Embedded terminal is focused → forward input.
         if self.state.terminal_focused() {
             match key.code {
                 KeyCode::Esc => self.state.blur_terminal(),
@@ -253,14 +225,9 @@ impl Application {
             }
             return Ok(false);
         }
-
-        // 3. Global bindings.
         match (key.modifiers, key.code) {
-            // Quit
             (KeyModifiers::CONTROL, KeyCode::Char('c'))
             | (KeyModifiers::NONE,  KeyCode::Char('q')) => return Ok(true),
-
-            // View switching — F-keys AND digit keys
             (KeyModifiers::NONE, KeyCode::F(1)) | (KeyModifiers::NONE, KeyCode::Char('1')) => {
                 self.state.set_view(ActiveView::Dashboard);
             }
@@ -277,15 +244,12 @@ impl Application {
                 self.state.set_view(ActiveView::Terminal);
                 self.state.terminal.focused = true;
             }
-
-            // Navigation
             (KeyModifiers::NONE, KeyCode::Up)   | (KeyModifiers::NONE, KeyCode::Char('k')) => {
                 self.state.select_prev();
             }
             (KeyModifiers::NONE, KeyCode::Down) | (KeyModifiers::NONE, KeyCode::Char('j')) => {
                 self.state.select_next();
             }
-            // Left/Right — category nav in Launcher, panel nav elsewhere
             (KeyModifiers::NONE, KeyCode::Left) => {
                 if self.state.active_view() == ActiveView::ToolLauncher {
                     self.state.prev_category();
@@ -305,8 +269,6 @@ impl Application {
 
             (KeyModifiers::NONE, KeyCode::Enter) => self.handle_enter().await?,
             (KeyModifiers::NONE, KeyCode::Esc)   => self.state.dismiss_popup(),
-
-            // Tool operations
             (KeyModifiers::NONE, KeyCode::Char('r')) => self.launch_selected_tool().await?,
             (KeyModifiers::NONE, KeyCode::Char('x')) => {
                 if let Some(idx) = self.state.selected_job {
@@ -322,49 +284,31 @@ impl Application {
                     self.notify(NotifLevel::Warning, "No job selected".into());
                 }
             }
-
-            // Set target
             (KeyModifiers::NONE, KeyCode::Char('t')) => {
                 self.state.popup = Some(PopupKind::TargetInput {
                     query: self.state.current_target.clone(),
                 });
             }
-
-            // Help
             (KeyModifiers::NONE, KeyCode::Char('?'))
             | (KeyModifiers::NONE, KeyCode::F(10)) => {
                 self.state.popup = Some(PopupKind::Help);
             }
-
-            // Clear terminal
             (KeyModifiers::CONTROL, KeyCode::Char('l')) => {
                 self.state.terminal.lines.clear();
             }
-
-            // Export report
             (KeyModifiers::CONTROL, KeyCode::Char('e')) => self.export_report().await?,
-
-            // Search
             (KeyModifiers::CONTROL, KeyCode::Char('f')) => self.state.open_search(),
-
-            // Workflow menu
             (KeyModifiers::NONE, KeyCode::Char('w')) => {
                 let names = crate::tools::workflow::builtin_workflows()
                     .iter().map(|w| w.name.clone()).collect();
                 self.state.popup = Some(PopupKind::WorkflowMenu { names, selected: 0 });
             }
-
-            // Stealth menu
             (KeyModifiers::NONE, KeyCode::Char('S')) => {
                 self.state.popup = Some(PopupKind::StealthMenu { selected: 0 });
             }
-
-            // Inspector
             (KeyModifiers::NONE, KeyCode::Char('i')) => {
                 self.state.open_inspector_for_selected();
             }
-
-            // Delete finding
             (KeyModifiers::NONE, KeyCode::Char('d')) => {
                 if let Some(idx) = self.state.selected_finding {
                     if let Some(f) = self.state.findings.get(idx) {
@@ -387,8 +331,6 @@ impl Application {
         }
         Ok(false)
     }
-
-    // ── popup key handler ─────────────────────────────────────────────────────
 
     async fn handle_popup_key(&mut self, key: crossterm::event::KeyEvent) -> Result<bool> {
         if key.code == KeyCode::Esc {
@@ -500,8 +442,6 @@ impl Application {
         Ok(false)
     }
 
-    // ── mouse handling ────────────────────────────────────────────────────────
-
     fn handle_mouse(&mut self, ev: crossterm::event::MouseEvent) {
         match ev.kind {
             MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
@@ -519,8 +459,6 @@ impl Application {
             _ => {}
         }
     }
-
-    // ── action handlers ───────────────────────────────────────────────────────
 
     async fn handle_enter(&mut self) -> Result<()> {
         match self.state.active_view() {
@@ -606,8 +544,6 @@ impl Application {
                 return Ok(());
             }
         };
-
-        // If the tool needs a target and none is set, show the target input popup.
         if spec.default_args.iter().any(|a| a.contains("{target}"))
             && self.state.current_target.is_empty()
         {
@@ -645,8 +581,6 @@ impl Application {
 
         reporting::html::export(&findings, &project, &out_dir.join("report.html"))?;
         reporting::json::export(&findings, &project, &out_dir.join("report.json"))?;
-
-        // Open the HTML report in the default browser.
         let html_path = out_dir.join("report.html");
         let _ = std::process::Command::new("xdg-open").arg(&html_path).spawn();
 

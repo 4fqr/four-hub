@@ -1,5 +1,3 @@
-// ─── Four-Hub · tui/widgets/inspector.rs ─────────────────────────────────────
-//! Inspector view: detailed finding / host view with scrollable evidence pane.
 
 use crate::tui::{app_state::AppState, layout::InspectorLayout, theme};
 use ratatui::{

@@ -1,5 +1,3 @@
-// ─── Four-Hub · reporting/json.rs ────────────────────────────────────────────
-//! Export all findings to a JSON report file.
 
 use crate::db::Finding;
 use anyhow::Result;

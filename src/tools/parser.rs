@@ -1,6 +1,3 @@
-// ─── Four-Hub · tools/parser.rs ──────────────────────────────────────────────
-//! Real-time stdout/stderr line parsing.
-//! Returns Vec<ParsedRecord> which may be a Finding, a Host, or a Port.
 
 use crate::{
     db::{Finding, Host, Port, Severity},
@@ -10,16 +7,12 @@ use chrono::Utc;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use uuid::Uuid;
-
-// ── What a parser call can return ─────────────────────────────────────────────
 #[derive(Debug, Clone)]
 pub enum ParsedRecord {
     Finding(Finding),
     NewHost(Host),
     NewPort { port: Port, host_addr: String },
 }
-
-// ── Compiled regexes ──────────────────────────────────────────────────────────
 static RE_NMAP_HOST: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"Nmap scan report for (?:(\S+) \()?(\d+\.\d+\.\d+\.\d+)\)?").unwrap()
 });
@@ -95,8 +88,6 @@ static RE_WAFW00F: Lazy<Regex> = Lazy::new(|| {
 static RE_WPSCAN_VULN: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^\[!\]\s+(.+)").unwrap()
 });
-
-// ── Entry-point ───────────────────────────────────────────────────────────────
 pub fn parse_line(spec: &ToolSpec, line: &str, target: &str) -> Vec<ParsedRecord> {
     match spec.name.as_str() {
         "nmap"                              => parse_nmap(line, target),
@@ -127,8 +118,6 @@ pub fn parse_line(spec: &ToolSpec, line: &str, target: &str) -> Vec<ParsedRecord
         _                                   => vec![],
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn finding(tool: &str, title: &str, description: &str, sev: Severity, evidence: &str) -> ParsedRecord {
     ParsedRecord::Finding(Finding {
@@ -283,7 +272,6 @@ fn parse_dirb(line: &str, _target: &str) -> Vec<ParsedRecord> {
 }
 
 fn parse_dirsearch(line: &str, _target: &str) -> Vec<ParsedRecord> {
-    // 200/301/302 lines: "  200   1KB  http://..."
     let re = Regex::new(r"^\s*(\d{3})\s+\S+\s+(https?://\S+)").unwrap();
     if let Some(caps) = re.captures(line) {
         let status = caps.get(1).map_or("200", |m| m.as_str());
@@ -512,8 +500,6 @@ fn parse_snmp(line: &str, target: &str) -> Vec<ParsedRecord> {
     }
     vec![]
 }
-
-// ── Nmap XML post-processor ───────────────────────────────────────────────────
 pub fn parse_nmap_xml(xml_path: &str, _target: &str) -> Vec<ParsedRecord> {
     let xml = match std::fs::read_to_string(xml_path) {
         Ok(s) => s, Err(_) => return vec![],
@@ -550,7 +536,6 @@ pub fn parse_nmap_xml(xml_path: &str, _target: &str) -> Vec<ParsedRecord> {
             let proto = attr(line, "protocol").unwrap_or_else(|| "tcp".into());
             let pid_str = attr(line, "portid").unwrap_or_else(|| "0".into());
             let pnum: u16 = pid_str.parse().unwrap_or(0);
-            // Only emit open ports (state comes on next line, assume open from XML structure)
             out.push(ParsedRecord::NewPort {
                 host_addr: current_ip.clone(),
                 port: Port { id: Uuid::new_v4().to_string(), host_id: current_hid.clone(),

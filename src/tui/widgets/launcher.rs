@@ -1,6 +1,3 @@
-// ─── Four-Hub · tui/widgets/launcher.rs ──────────────────────────────────────
-//! Tool Launcher view: category tree on the left, tool list in the centre,
-//! detail / argument panel at the bottom.
 
 use crate::tui::{app_state::AppState, layout::LauncherLayout, theme};
 use std::path::PathBuf;
@@ -53,7 +50,6 @@ fn render_categories(f: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn tool_installed(binary: &str) -> bool {
-    // Fast path: check PATH by looking for the binary in standard dirs.
     std::env::var_os("PATH")
         .map(|paths| {
             std::env::split_paths(&paths)
@@ -135,6 +131,10 @@ fn render_detail(f: &mut Frame, area: Rect, state: &AppState) {
                 Line::from(vec![
                     Span::styled("  DESCRIPTION ", theme::style_dim()),
                     Span::styled(&spec.description, theme::style_normal()),
+                ]),
+                Line::from(vec![
+                    Span::styled("  TARGET TYPE ", theme::style_dim()),
+                    Span::styled(spec.effective_hint(), theme::style_warning()),
                 ]),
                 Line::from(vec![
                     Span::styled("  DEFAULT ARGS", theme::style_dim()),

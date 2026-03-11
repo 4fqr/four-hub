@@ -1,10 +1,6 @@
-// ─── Four-Hub · stealth/anti_forensics.rs ────────────────────────────────────
-//! Clean-up routines executed on exit: wipe shell history, temp files, logs.
 
 use std::{path::PathBuf, process::Command};
 use tracing::{info, warn};
-
-/// Called on clean exit to remove forensic artefacts.
 pub fn wipe_on_exit() {
     wipe_shell_history();
     wipe_temp_files();
@@ -24,7 +20,6 @@ fn wipe_shell_history() {
             }
         }
     }
-    // Also unset HISTFILE and set HISTSIZE=0 for the current process.
     std::env::set_var("HISTSIZE", "0");
     std::env::set_var("HISTFILESIZE", "0");
 }
@@ -35,15 +30,12 @@ fn wipe_temp_files() {
         "/tmp/four-hub-*",
     ];
     for pat in patterns {
-        // Use glob-based deletion via shell to handle wildcards.
         let _ = Command::new("sh")
             .args(["-c", &format!("rm -rf {pat} 2>/dev/null")])
             .output();
     }
     info!("temp files wiped");
 }
-
-/// Overwrite a file with zeros before deleting it ("poor man's shred").
 fn secure_delete(path: &PathBuf) -> std::io::Result<()> {
     use std::io::Write;
     let meta = std::fs::metadata(path)?;

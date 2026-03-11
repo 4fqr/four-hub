@@ -1,9 +1,3 @@
-// ─── Four-Hub · db/mod.rs ────────────────────────────────────────────────────
-//! Encrypted SQLite persistence layer.
-//!
-//! All user-supplied string columns (target, notes, output, etc.) are stored
-//! AES-256-GCM encrypted.  Metadata that must be queryable (timestamps, IDs,
-//! severity levels) is stored in plaintext.
 
 pub mod schema;
 
@@ -14,8 +8,6 @@ use rusqlite::{params, Connection};
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use std::{path::Path, sync::Mutex};
-
-// ─── Domain types ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Host {
@@ -88,17 +80,12 @@ pub struct ScanJob {
     pub ended_at:   Option<DateTime<Utc>>,
     pub output:     Option<String>,
 }
-
-// ─── Database ────────────────────────────────────────────────────────────────
-
-/// Thread-safe encrypted database handle.
 pub struct Database {
     conn: Mutex<Connection>,
     key:  VaultKey,
 }
 
 impl Database {
-    /// Open (or create) the encrypted database at `path`.
     pub fn open(path: &Path, key: &VaultKey) -> Result<Self> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
@@ -107,16 +94,12 @@ impl Database {
 
         let conn = Connection::open(path)
             .with_context(|| format!("open db: {}", path.display()))?;
-
-        // Enable WAL for better concurrency.
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
 
         schema::initialise(&conn)?;
 
         Ok(Self { conn: Mutex::new(conn), key: key.clone() })
     }
-
-    // ── helpers ───────────────────────────────────────────────────────────────
 
     fn enc(&self, s: &str) -> Result<String> {
         let blob = self.key.encrypt(s.as_bytes())?;
@@ -132,8 +115,6 @@ impl Database {
     fn dec_opt(&self, opt: Option<String>) -> Option<String> {
         opt.and_then(|s| self.dec(&s).ok())
     }
-
-    // ── hosts ────────────────────────────────────────────────────────────────
 
     pub fn upsert_host(&self, host: &Host) -> Result<()> {
         let conn = self.conn.lock().expect("db mutex poisoned");
@@ -189,8 +170,6 @@ impl Database {
         }
         Ok(hosts)
     }
-
-    // ── ports ────────────────────────────────────────────────────────────────
 
     pub fn upsert_port(&self, port: &Port) -> Result<()> {
         let conn = self.conn.lock().expect("db mutex poisoned");
@@ -250,8 +229,6 @@ impl Database {
         }
         Ok(ports)
     }
-
-    // ── findings ─────────────────────────────────────────────────────────────
 
     pub fn insert_finding(&self, f: &Finding) -> Result<()> {
         let conn = self.conn.lock().expect("db mutex poisoned");
@@ -319,8 +296,6 @@ impl Database {
         let n: i64 = conn.query_row("SELECT COUNT(*) FROM findings", [], |row| row.get(0))?;
         Ok(n as u64)
     }
-
-    // ── scan jobs ────────────────────────────────────────────────────────────
 
     pub fn insert_job(&self, job: &ScanJob) -> Result<()> {
         let conn = self.conn.lock().expect("db mutex poisoned");

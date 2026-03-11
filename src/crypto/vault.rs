@@ -1,6 +1,3 @@
-// ─── Four-Hub · crypto/vault.rs ──────────────────────────────────────────────
-//! AES-256-GCM encryption backed by Argon2id key derivation.
-//! All secret material implements `Zeroize` and is mlock'd on creation.
 
 use crate::config::CryptoConfig;
 use aes_gcm::{
@@ -15,11 +12,6 @@ use zeroize::ZeroizeOnDrop;
 pub const KEY_BYTES:   usize = 32;
 pub const NONCE_BYTES: usize = 12;
 pub const SALT_BYTES:  usize = 16;
-
-// ─── VaultKey ───────────────────────────────────────────────────────────────
-
-/// A 32-byte AES-256-GCM key derived from a user passphrase via Argon2id.
-/// Memory is zeroed on drop and mlock'd (if available) to prevent swapping.
 #[derive(Clone, ZeroizeOnDrop)]
 pub struct VaultKey {
     #[zeroize(skip)]
@@ -27,9 +19,6 @@ pub struct VaultKey {
 }
 
 impl VaultKey {
-    /// Derive a `VaultKey` from `passphrase` using the parameters in `cfg`.
-    /// If `cfg.salt_hex` is empty a fresh random salt is generated and
-    /// returned (caller is responsible for persisting it).
     pub fn derive(passphrase: &str, cfg: &CryptoConfig) -> Result<Self> {
         let salt = if cfg.salt_hex.is_empty() {
             let mut s = [0u8; SALT_BYTES];
@@ -58,8 +47,6 @@ impl VaultKey {
         argon2
             .hash_password_into(passphrase.as_bytes(), &salt, key_bytes.as_mut())
             .map_err(|e| anyhow::anyhow!("Argon2 hash: {e}"))?;
-
-        // Attempt mlock to keep key material out of swap.
         #[cfg(target_os = "linux")]
         unsafe {
             libc::mlock(
@@ -74,8 +61,6 @@ impl VaultKey {
     pub fn as_bytes(&self) -> &[u8; KEY_BYTES] {
         &self.inner
     }
-
-    /// Encrypt `plaintext` → `[nonce (12 B)] ++ [ciphertext + GCM tag (16 B)]`.
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(self.inner.as_ref()));
         let nonce  = Aes256Gcm::generate_nonce(&mut OsRng);
@@ -86,8 +71,6 @@ impl VaultKey {
         out.extend_from_slice(&ct);
         Ok(out)
     }
-
-    /// Decrypt a blob produced by [`encrypt`].
     pub fn decrypt(&self, blob: &[u8]) -> Result<Vec<u8>> {
         if blob.len() < NONCE_BYTES {
             bail!("ciphertext too short");
@@ -100,15 +83,11 @@ impl VaultKey {
             .map_err(|e| anyhow::anyhow!("AES-GCM decrypt: {e}"))
     }
 }
-
-// Prevent accidental debug printing of key material.
 impl std::fmt::Debug for VaultKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("VaultKey(***)")
     }
 }
-
-// ─── Helper: securely wipe a Vec<u8> ────────────────────────────────────────
 pub fn secure_zero(buf: &mut Vec<u8>) {
     buf.iter_mut().for_each(|b| *b = 0);
     buf.clear();

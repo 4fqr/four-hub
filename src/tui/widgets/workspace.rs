@@ -1,5 +1,3 @@
-// ─── Four-Hub · tui/widgets/workspace.rs ─────────────────────────────────────
-//! Workspace view: host table | port table | findings table.
 
 use crate::tui::{
     app_state::{AppState, Panel},

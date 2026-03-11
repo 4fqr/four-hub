@@ -1,6 +1,3 @@
-// ─── Four-Hub · lib.rs ────────────────────────────────────────────────────────
-//! Library interface – exposes all internal modules for integration tests and
-//! for the binary entry-point in `main.rs`.
 #![allow(dead_code)]
 
 pub mod app;
