@@ -56,7 +56,7 @@ fn tool_installed(binary: &str) -> bool {
                 .any(|mut p| { p.push(binary); p.is_file() })
         })
         .unwrap_or(false)
-        || PathBuf::from(binary).is_file()   // absolute path
+        || PathBuf::from(binary).is_file()
 }
 
 fn render_tools(f: &mut Frame, area: Rect, state: &AppState) {
@@ -154,10 +154,14 @@ fn render_detail(f: &mut Frame, area: Rect, state: &AppState) {
                 Line::raw(""),
                 Line::from(vec![
                     Span::styled("  [r] ", theme::style_keybind()),
-                    Span::styled("Run tool   ", theme::style_normal()),
+                    Span::styled("Run   ", theme::style_normal()),
+                    Span::styled("[e] ", theme::style_keybind()),
+                    Span::styled("Configure   ", theme::style_normal()),
                     Span::styled("[t] ", theme::style_keybind()),
                     Span::styled("Set target   ", theme::style_normal()),
-                    Span::styled("[</> ] ", theme::style_keybind()),
+                ]),
+                Line::from(vec![
+                    Span::styled("  [</> ] ", theme::style_keybind()),
                     Span::styled("Switch category", theme::style_normal()),
                 ]),
             ]
@@ -179,6 +183,7 @@ fn render_detail(f: &mut Frame, area: Rect, state: &AppState) {
 
 fn category_icon(cat: &str) -> &'static str {
     match cat.to_lowercase().as_str() {
+        "null"         => "🪐",
         "recon"        => "🔭",
         "exploitation" => "💥",
         "web"          => "🌐",

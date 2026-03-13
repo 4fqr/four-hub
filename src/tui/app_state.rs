@@ -15,6 +15,7 @@ pub enum ActiveView {
     Workspace,
     Inspector,
     Terminal,
+    Wordlists,
 }
 
 impl ActiveView {
@@ -25,6 +26,7 @@ impl ActiveView {
             Self::Workspace    => "WORKSPACE",
             Self::Inspector    => "INSPECTOR",
             Self::Terminal     => "TERMINAL",
+            Self::Wordlists    => "WORDLISTS",
         }
     }
 }
@@ -45,7 +47,8 @@ pub struct RunningJob {
     pub started:  DateTime<Utc>,
     pub finished: bool,
     pub exit_code: Option<i32>,
-    pub output:   Vec<String>,
+    pub progress:  f64,
+    pub output:    Vec<String>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Panel { Left, Right, Top, Bottom }
@@ -83,6 +86,8 @@ pub struct AppState {
     pub scroll_offset: usize,
     pub split_x:       u16,
     pub pending_terminal_cmd: Option<String>,
+    pub active_wordlist:      Option<String>,
+    pub activity_log:         Vec<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -94,6 +99,7 @@ pub enum PopupKind {
     Error { msg: String },
     WorkflowMenu { names: Vec<String>, selected: usize },
     StealthMenu { selected: usize },
+    ToolConfigInput { tool_name: String, args: String },
 }
 
 #[derive(Debug, Clone)]
@@ -110,6 +116,8 @@ pub enum ContextAction {
     LaunchTool(ToolSpec),
     CopyText(String),
     OpenInspector,
+    AnalyzeService,
+    PivotTool(String),
 }
 #[derive(Debug, Default)]
 pub struct EmbeddedTermState {
@@ -158,6 +166,10 @@ impl AppState {
             scroll_offset:          0,
             split_x:               40,
             pending_terminal_cmd:  None,
+            active_wordlist:       None,
+            selected_wordlist:     0,
+            wordlist_files:        Vec::new(),
+            activity_log:          vec![0; 50],
         }
     }
 
@@ -206,6 +218,7 @@ impl AppState {
             started:   Utc::now(),
             finished:  false,
             exit_code: None,
+            progress:  0.0,
             output:    Vec::new(),
         });
     }
@@ -216,6 +229,12 @@ impl AppState {
             if job.output.len() > 5000 {
                 job.output.remove(0);
             }
+        }
+    }
+
+    pub fn update_tool_progress(&mut self, job_id: &str, progress: f64) {
+        if let Some(job) = self.jobs.iter_mut().find(|j| j.id == job_id) {
+            job.progress = progress;
         }
     }
 
@@ -310,6 +329,9 @@ impl AppState {
             ActiveView::Inspector => {
                 self.inspector_scroll = self.inspector_scroll.saturating_sub(1);
             }
+            ActiveView::Wordlists => {
+                if self.selected_wordlist > 0 { self.selected_wordlist -= 1; }
+            }
             _ => { if self.scroll_offset > 0 { self.scroll_offset -= 1; } }
         }
     }
@@ -356,6 +378,10 @@ impl AppState {
                 }
             }
             ActiveView::Inspector => { self.inspector_scroll += 1; }
+            ActiveView::Wordlists => {
+                let max = self.wordlist_files.len().saturating_sub(1);
+                if self.selected_wordlist < max { self.selected_wordlist += 1; }
+            }
             _ => { self.scroll_offset += 1; }
         }
     }
@@ -456,12 +482,37 @@ impl AppState {
     }
 
     pub fn context_menu(&mut self, x: u16, y: u16) {
-        self.popup = Some(PopupKind::ContextMenu {
-            x, y,
-            items: vec![
-                ContextItem { label: "Inspect".into(), action: ContextAction::OpenInspector },
-            ],
-        });
+        let mut items = vec![
+            ContextItem { label: "🔍 Inspect Details".into(), action: ContextAction::OpenInspector },
+        ];
+
+
+        if self.active_view == ActiveView::Workspace {
+            if let Some(idx) = self.selected_port {
+                if let Some(port) = self.ports.get(idx) {
+                    let p = port.port;
+                    match p {
+                        80 | 443 | 8080 => {
+                            items.push(ContextItem { label: "🌐 Fuzz with 4gobuster".into(), action: ContextAction::PivotTool("4gobuster".into()) });
+                            items.push(ContextItem { label: "🛡️ Scan with 4nikto".into(), action: ContextAction::PivotTool("4nikto".into()) });
+                        }
+                        22 => {
+                            items.push(ContextItem { label: "🔑 Bruteforce with 4hydra".into(), action: ContextAction::PivotTool("4hydra".into()) });
+                        }
+                        _ => {}
+                    }
+                }
+            } else if let Some(idx) = self.selected_host {
+                if let Some(host) = self.hosts.get(idx) {
+                     items.push(ContextItem { label: "🛰️ Scan with 4nmap".into(), action: ContextAction::PivotTool("4nmap".into()) });
+                     if host.hostname.is_some() {
+                         items.push(ContextItem { label: "🔎 Enum with 4subfinder".into(), action: ContextAction::PivotTool("4subfinder".into()) });
+                     }
+                }
+            }
+        }
+
+        self.popup = Some(PopupKind::ContextMenu { x, y, items });
     }
 
     pub fn drag(&mut self, col: u16, _row: u16) {
@@ -490,7 +541,7 @@ impl AppState {
                 self.terminal.history.push(cmd.clone());
                 self.terminal.hist_pos = self.terminal.history.len();
                 self.push_terminal_line(format!("$ {cmd}"));
-                Some(cmd)  // caller will execute this
+                Some(cmd)
             }
             KeyCode::Up => {
                 if self.terminal.hist_pos > 0 {
@@ -524,5 +575,25 @@ impl AppState {
         if self.terminal.lines.len() > 10_000 {
             self.terminal.lines.remove(0);
         }
+    }
+
+    pub fn intelligence_suggestions(&self) -> Vec<String> {
+        let mut suggs = Vec::new();
+        if self.current_target.is_empty() {
+             suggs.push("▶ Set target [t]".into());
+        } else if self.hosts.is_empty() {
+             suggs.push("▶ Run 4nmap".into());
+        } else {
+            for p in &self.ports {
+                if (p.port == 80 || p.port == 443 || p.port == 8080) && !self.jobs.iter().any(|j| j.tool == "4gobuster" && j.target.contains(&p.port.to_string())) {
+                    suggs.push(format!("▶ Port {} open [4gobuster]", p.port));
+                }
+                if p.port == 22 && !self.jobs.iter().any(|j| j.tool == "4hydra") {
+                    suggs.push("▶ SSH found [4hydra]".into());
+                }
+            }
+        }
+        if suggs.is_empty() { suggs.push("▶ Analyzing...".into()); }
+        suggs
     }
 }

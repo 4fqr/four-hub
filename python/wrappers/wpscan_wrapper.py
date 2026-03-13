@@ -31,7 +31,7 @@ class WpscanWrapper(ToolWrapper):
     def parse_output(self, output: str, target: str) -> Iterator[Finding]:
         try:
             data = json.loads(output)
-            # Plugin vulns
+
             for _slug, pdata in data.get("plugins", {}).items():
                 for vuln in pdata.get("vulnerabilities", []):
                     title = vuln.get("title", "WP plugin vulnerability")
@@ -44,7 +44,7 @@ class WpscanWrapper(ToolWrapper):
                     )
                     emit(f)
                     yield f
-            # Theme vulns
+
             for _slug, tdata in data.get("themes", {}).items():
                 for vuln in tdata.get("vulnerabilities", []):
                     title = vuln.get("title", "WP theme vulnerability")

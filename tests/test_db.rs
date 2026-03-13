@@ -1,5 +1,5 @@
-// ─── Four-Hub · tests/test_db.rs ─────────────────────────────────────────────
-//! Integration tests for the encrypted database layer.
+
+
 
 use four_hub::config::CryptoConfig;
 use four_hub::crypto::vault::VaultKey;
@@ -11,7 +11,7 @@ fn test_vault() -> VaultKey {
         argon2_memory_kib: 8192,
         argon2_time:       1,
         argon2_parallel:   1,
-        // Exactly 16 bytes → 32 hex chars
+
         salt_hex: "aabbccddaabbccddaabbccddaabbccdd".to_owned(),
     };
     VaultKey::derive("test-passphrase", &cfg).unwrap()

@@ -1,17 +1,17 @@
-# ─── Four-Hub · tools.toml ────────────────────────────────────────────────────
-# Custom / extra tool definitions. Each [[tool]] block defines one tool.
-# These are merged with the built-in registry at startup.
-#
-# Field reference:
-#   name        — unique identifier (lower-case, hyphens ok)
-#   display     — human-readable name shown in the TUI
-#   category    — one of: Recon, Web, Exploitation, Post-Exploitation,
-#                          Password, Wireless, Network, Reporting, Custom
-#   binary      — executable name (looked up via $PATH)
-#   args        — argument list; "{target}" is replaced with the active target
-#   description — shown in the tool detail panel
-#   timeout_secs — kill tool after this many seconds (0 = no limit)
-#   tags        — list of searchable keywords
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [[tool]]
 name         = "rustscan"

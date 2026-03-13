@@ -3,3 +3,4 @@ pub mod inspector;
 pub mod launcher;
 pub mod terminal;
 pub mod workspace;
+pub mod wordlists;

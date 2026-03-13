@@ -32,5 +32,5 @@ __all__ = [
     "CrackmapexecWrapper", "Enum4linuxWrapper", "DirbWrapper", "SmbclientWrapper",
 ]
 
-# Registry: tool name → wrapper class
+
 REGISTRY: dict = {w.name: w for w in __all__ if hasattr(w, 'name')}

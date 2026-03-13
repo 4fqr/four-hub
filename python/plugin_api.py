@@ -19,7 +19,7 @@ from typing import Iterator, List, Optional
 import uuid
 
 
-# ── Finding schema ────────────────────────────────────────────────────────────
+
 
 @dataclass
 class Finding:
@@ -28,7 +28,7 @@ class Finding:
     tool:        str               = ""
     title:       str               = ""
     description: str               = ""
-    severity:    str               = "info"   # critical|high|medium|low|info
+    severity:    str               = "info"
     evidence:    Optional[str]     = None
     host_id:     Optional[str]     = None
     port_id:     Optional[str]     = None
@@ -43,7 +43,7 @@ class Finding:
         return json.dumps(self.to_dict())
 
 
-# ── Base wrapper ──────────────────────────────────────────────────────────────
+
 
 class ToolWrapper(ABC):
     """
@@ -54,10 +54,10 @@ class ToolWrapper(ABC):
     `parse_output(raw_output)` for post-processing.
     """
 
-    #: Tool name as registered in tools.toml
+
     name: str = "unknown"
 
-    # ── override in subclasses ────────────────────────────────────────────────
+
 
     @abstractmethod
     def build_command(self, target: str) -> List[str]:
@@ -70,7 +70,7 @@ class ToolWrapper(ABC):
         Subclasses override this for real-time streaming parse.
         """
         return
-        yield  # make this a generator
+        yield
 
     def parse_output(self, output: str, target: str) -> Iterator[Finding]:
         """
@@ -80,7 +80,7 @@ class ToolWrapper(ABC):
         for line in output.splitlines():
             yield from self.parse_line(line, target)
 
-    # ── helpers ────────────────────────────────────────────────────────────────
+
 
     @staticmethod
     def finding(
@@ -104,7 +104,7 @@ class ToolWrapper(ABC):
         return shutil.which(binary) is not None
 
 
-# ── Utility helpers ────────────────────────────────────────────────────────────
+
 
 def emit(finding: Finding) -> None:
     """Print a finding as a JSON line to stdout for the Rust executor to pick up."""

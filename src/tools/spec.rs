@@ -60,6 +60,8 @@ pub struct ToolSpec {
     pub target_type:  TargetType,
     #[serde(default)]
     pub target_hint:  String,
+    #[serde(default)]
+    pub is_builtin:   bool,
 }
 
 fn default_proxychains() -> bool { true }
@@ -73,7 +75,7 @@ impl ToolSpec {
         }
     }
 
-    pub fn build_argv(&self, target: &str, proxychains_bin: &str, use_proxychains: bool) -> Vec<String> {
+    pub fn build_argv(&self, target: &str, wordlist: &str, proxychains_bin: &str, use_proxychains: bool) -> Vec<String> {
         let mut argv = Vec::new();
         if self.proxychains && use_proxychains {
             argv.push(proxychains_bin.to_string());
@@ -83,7 +85,11 @@ impl ToolSpec {
         }
         argv.push(self.binary.clone());
         for arg in &self.default_args {
-            argv.push(arg.replace("{target}", target));
+            let mut s = arg.replace("{target}", target);
+            if !wordlist.is_empty() {
+                s = s.replace("{wordlist}", wordlist);
+            }
+            argv.push(s);
         }
         argv
     }

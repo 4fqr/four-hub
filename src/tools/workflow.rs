@@ -71,8 +71,22 @@ impl Workflow {
         Ok(all_job_ids)
     }
 }
-pub fn builtin_workflows() -> Vec<Workflow> {
-    vec![
+        Workflow {
+            name:        "4-Elite Offensive".into(),
+            description: "Null-Suite proprietary pipeline (4nmap → 4gobuster → 4nikto)".into(),
+            stages: vec![
+                WorkflowStage {
+                    name: "Mapping",
+                    tools: vec!["4nmap".into()],
+                    concurrency: Concurrency::Sequential,
+                },
+                WorkflowStage {
+                    name: "Fuzzing",
+                    tools: vec!["4gobuster".into(), "4nikto".into()],
+                    concurrency: Concurrency::Parallel,
+                },
+            ],
+        },
         Workflow {
             name:        "Full Recon".into(),
             description: "Nmap + theHarvester + DNSenum + EyeWitness".into(),

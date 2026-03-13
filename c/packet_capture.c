@@ -1,14 +1,6 @@
-/*
- * four-hub · c/packet_capture.c
- *
- * Raw-packet capture built on libpcap.
- * Compiled by Cargo via build.rs (cc crate).
- *
- * Requires: apt install libpcap-dev
- * _GNU_SOURCE is defined by the build system (-D_GNU_SOURCE).
- */
 
-/* _GNU_SOURCE defined by cc crate — do not redefine here */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,14 +10,14 @@
 #include <pcap/pcap.h>
 #include "packet_capture.h"
 
-/* ── Internal capture context ────────────────────────────────────────────── */
+
 
 struct fh_capture {
     pcap_t  *handle;
     char     errbuf[PCAP_ERRBUF_SIZE];
 };
 
-/* ── fh_capture_open ─────────────────────────────────────────────────────── */
+
 
 fh_capture_t *
 fh_capture_open(const char *iface, int snaplen, int promisc, char *errbuf)
@@ -41,14 +33,14 @@ fh_capture_open(const char *iface, int snaplen, int promisc, char *errbuf)
         return NULL;
     }
 
-    /* Lock the context struct to prevent swapping sensitive data. */
+    
     mlock(ctx, sizeof(fh_capture_t));
 
     ctx->handle = pcap_open_live(
         iface,
         snaplen > 0 ? snaplen : FH_SNAPLEN,
         promisc,
-        1000,          /* read timeout ms */
+        1000,          
         ctx->errbuf
     );
 
@@ -62,7 +54,7 @@ fh_capture_open(const char *iface, int snaplen, int promisc, char *errbuf)
     return ctx;
 }
 
-/* ── fh_capture_set_filter ───────────────────────────────────────────────── */
+
 
 int
 fh_capture_set_filter(fh_capture_t *cap, const char *filter_str)
@@ -73,7 +65,7 @@ fh_capture_set_filter(fh_capture_t *cap, const char *filter_str)
     bpf_u_int32 net  = 0;
     bpf_u_int32 mask = 0;
 
-    /* Retrieve network/mask for the device (best effort). */
+    
     char tmp_err[PCAP_ERRBUF_SIZE];
     pcap_lookupnet(pcap_datalink_val_to_name(pcap_datalink(cap->handle)),
                    &net, &mask, tmp_err);
@@ -86,7 +78,7 @@ fh_capture_set_filter(fh_capture_t *cap, const char *filter_str)
     return rc;
 }
 
-/* ── fh_capture_next ─────────────────────────────────────────────────────── */
+
 
 int
 fh_capture_next(fh_capture_t *cap, fh_packet_t *out)
@@ -97,7 +89,7 @@ fh_capture_next(fh_capture_t *cap, fh_packet_t *out)
     const u_char       *data = NULL;
 
     int rc = pcap_next_ex(cap->handle, &hdr, &data);
-    /* rc: 1 = ok, 0 = timeout, -1 = error, -2 = EOF offline */
+    
 
     if (rc == 1 && hdr && data) {
         out->ts_sec  = (uint64_t)hdr->ts.tv_sec;
@@ -111,7 +103,7 @@ fh_capture_next(fh_capture_t *cap, fh_packet_t *out)
     return rc == 0 ? 0 : -1;
 }
 
-/* ── fh_capture_stats ────────────────────────────────────────────────────── */
+
 
 void
 fh_capture_stats(fh_capture_t *cap, uint64_t *ps_recv, uint64_t *ps_drop)
@@ -128,7 +120,7 @@ fh_capture_stats(fh_capture_t *cap, uint64_t *ps_recv, uint64_t *ps_drop)
     }
 }
 
-/* ── fh_capture_close ────────────────────────────────────────────────────── */
+
 
 void
 fh_capture_close(fh_capture_t *cap)
@@ -138,7 +130,7 @@ fh_capture_close(fh_capture_t *cap)
         pcap_close(cap->handle);
         cap->handle = NULL;
     }
-    /* Zero and unlock the memory. */
+    
     memset(cap->errbuf, 0, sizeof(cap->errbuf));
     munlock(cap, sizeof(fh_capture_t));
     free(cap);

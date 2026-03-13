@@ -1,5 +1,5 @@
-// ─── Four-Hub · tests/test_tools.rs ──────────────────────────────────────────
-//! Integration tests for the tools subsystem — registry, spec, parser.
+
+
 
 use four_hub::config::AppConfig;
 use four_hub::db::Severity;
@@ -9,7 +9,7 @@ use four_hub::tools::{
     spec::ToolSpec,
 };
 
-/// Helper: build a minimal ToolSpec for unit tests.
+
 fn make_spec(name: &str, binary: &str, args: Vec<&str>, proxychains: bool) -> ToolSpec {
     ToolSpec {
         name:         name.to_owned(),

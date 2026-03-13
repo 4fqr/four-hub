@@ -1,5 +1,5 @@
-// ─── Four-Hub · tests/test_crypto.rs ─────────────────────────────────────────
-//! Integration tests for the crypto vault.
+
+
 
 use four_hub::config::CryptoConfig;
 use four_hub::crypto::vault::VaultKey;
@@ -9,7 +9,7 @@ fn default_cfg() -> CryptoConfig {
         argon2_memory_kib: 8192,
         argon2_time:       1,
         argon2_parallel:   1,
-        // Must be exactly 16 bytes → 32 hex chars
+
         salt_hex: "deadbeefdeadbeefdeadbeefdeadbeef".to_owned(),
     }
 }
@@ -44,7 +44,7 @@ fn different_passphrases_produce_different_keys() {
     let key_a = VaultKey::derive("passphrase-one", &cfg).unwrap();
     let key_b = VaultKey::derive("passphrase-two", &cfg).unwrap();
 
-    // Encrypt same plaintext with both keys — ciphertext should differ.
+
     let ct_a = key_a.encrypt(b"data").unwrap();
     let ct_b = key_b.encrypt(b"data").unwrap();
     assert_ne!(ct_a, ct_b);
@@ -58,7 +58,7 @@ fn encrypt_produces_unique_nonces() {
     let ct1 = key.encrypt(b"same plaintext").unwrap();
     let ct2 = key.encrypt(b"same plaintext").unwrap();
 
-    // Each call should produce a fresh random nonce → different blobs.
+
     assert_ne!(ct1, ct2, "nonces must be unique per encryption");
 }
 

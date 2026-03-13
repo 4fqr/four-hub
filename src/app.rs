@@ -58,6 +58,20 @@ impl Application {
         state.all_tools        = all_tools_map;
         state.tool_categories  = categories;
         state.tools_in_category = first_tools;
+
+
+        let mut wl = Vec::new();
+        for d in &["/usr/share/wordlists", "/usr/share/seclists", "/usr/share/dirb/wordlists"] {
+            if let Ok(entries) = std::fs::read_dir(d) {
+                for e in entries.flatten() {
+                    let p = e.path();
+                    if p.is_file() {
+                        wl.push(p.to_string_lossy().into_owned());
+                    }
+                }
+            }
+        }
+        state.wordlist_files = wl;
         let renderer = Renderer::new()?;
 
         Ok(Self {
@@ -108,6 +122,10 @@ impl Application {
             match event {
                 AppEvent::Tick => {
                     self.state.update_stats(&self.db).await;
+
+                    self.state.activity_log.rotate_left(1);
+                    self.state.activity_log[49] = 0;
+                    
                     if let Some(cmd) = self.state.pending_terminal_cmd.take() {
                         self.run_shell_cmd(cmd).await;
                     }
@@ -116,6 +134,11 @@ impl Application {
                 AppEvent::ToolOutput { id, line } => {
                     self.state.append_tool_output(&id, line.clone());
                     self.state.push_terminal_line(line);
+                    self.state.activity_log[49] = self.state.activity_log[49].saturating_add(1);
+                }
+                
+                AppEvent::ToolProgress { id, progress } => {
+                    self.state.update_tool_progress(&id, progress);
                 }
 
                 AppEvent::ToolFinished { id, exit_code } => {
@@ -151,7 +174,7 @@ impl Application {
 
                 AppEvent::Terminal(ev) => {
                     if self.handle_terminal_event(ev).await? {
-                        break; // quit
+                        break;
                     }
                 }
             }
@@ -244,6 +267,9 @@ impl Application {
                 self.state.set_view(ActiveView::Terminal);
                 self.state.terminal.focused = true;
             }
+            (KeyModifiers::NONE, KeyCode::F(6)) | (KeyModifiers::NONE, KeyCode::Char('6')) => {
+                self.state.set_view(ActiveView::Wordlists);
+            }
             (KeyModifiers::NONE, KeyCode::Up)   | (KeyModifiers::NONE, KeyCode::Char('k')) => {
                 self.state.select_prev();
             }
@@ -270,6 +296,16 @@ impl Application {
             (KeyModifiers::NONE, KeyCode::Enter) => self.handle_enter().await?,
             (KeyModifiers::NONE, KeyCode::Esc)   => self.state.dismiss_popup(),
             (KeyModifiers::NONE, KeyCode::Char('r')) => self.launch_selected_tool().await?,
+            (KeyModifiers::NONE, KeyCode::Char('e')) => {
+                if self.state.active_view() == ActiveView::ToolLauncher {
+                    if let Some(spec) = self.state.selected_tool_spec() {
+                        self.state.popup = Some(PopupKind::ToolConfigInput {
+                            tool_name: spec.name.clone(),
+                            args:      spec.default_args.join(" "),
+                        });
+                    }
+                }
+            }
             (KeyModifiers::NONE, KeyCode::Char('x')) => {
                 if let Some(idx) = self.state.selected_job {
                     if let Some(job) = self.state.jobs.get(idx) {
@@ -437,6 +473,39 @@ impl Application {
                 }
             }
 
+            PopupKind::ToolConfigInput { tool_name, args } => {
+                match key.code {
+                    KeyCode::Enter => {
+                        let final_args = args.clone();
+                        self.state.popup = None;
+                        if let Some(mut spec) = self.executor.registry_find(&tool_name) {
+                            spec.default_args = final_args.split_whitespace().map(|s| s.to_string()).collect();
+                            let target   = self.state.current_target.clone();
+                            let wordlist = self.state.active_wordlist.clone().unwrap_or_default();
+                            match self.executor.launch(&spec, target, wordlist).await {
+                                Ok(jid) => {
+                                    self.state.register_job(jid, spec.name.clone());
+                                    self.notify(NotifLevel::Success, format!("▶ {} started with custom flags", spec.name));
+                                    self.state.set_view(ActiveView::Dashboard);
+                                }
+                                Err(e) => self.notify(NotifLevel::Error, format!("Launch failed: {e}")),
+                            }
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        if let Some(PopupKind::ToolConfigInput { ref mut args, .. }) = self.state.popup {
+                            args.pop();
+                        }
+                    }
+                    KeyCode::Char(c) => {
+                        if let Some(PopupKind::ToolConfigInput { ref mut args, .. }) = self.state.popup {
+                            args.push(c);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
             _ => { self.state.popup = None; }
         }
         Ok(false)
@@ -445,7 +514,7 @@ impl Application {
     fn handle_mouse(&mut self, ev: crossterm::event::MouseEvent) {
         match ev.kind {
             MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
-                self.state.popup = None; // dismiss any open popup
+                self.state.popup = None;
                 self.state.click(ev.column, ev.row);
             }
             MouseEventKind::Down(crossterm::event::MouseButton::Right) => {
@@ -465,6 +534,12 @@ impl Application {
             ActiveView::ToolLauncher => self.launch_selected_tool().await?,
             ActiveView::Workspace    => self.state.open_inspector_for_selected(),
             ActiveView::Terminal     => { self.state.terminal.focused = true; }
+            ActiveView::Wordlists    => {
+                if let Some(path) = self.state.wordlist_files.get(self.state.selected_wordlist).cloned() {
+                    self.state.active_wordlist = Some(path.clone());
+                    self.notify(NotifLevel::Success, format!("Active wordlist → {}", path));
+                }
+            }
             _                        => {}
         }
         Ok(())
@@ -481,12 +556,13 @@ impl Application {
             ConfirmAction::RunWorkflow(name) => {
                 let workflows = crate::tools::workflow::builtin_workflows();
                 if let Some(wf) = workflows.into_iter().find(|w| w.name == name) {
-                    let target = self.state.current_target.clone();
+                    let target   = self.state.current_target.clone();
+                    let wordlist = self.state.active_wordlist.clone().unwrap_or_default();
                     self.notify(NotifLevel::Info, format!("▶ Workflow '{}' started", wf.name));
                     for step in &wf.stages {
                         for tool_name in &step.tools {
                             if let Some(spec) = self.executor.registry_find(tool_name) {
-                                match self.executor.launch(&spec, target.clone()).await {
+                                match self.executor.launch(&spec, target.clone(), wordlist.clone()).await {
                                     Ok(jid) => self.state.register_job(jid, tool_name.clone()),
                                     Err(e)  => self.notify(NotifLevel::Error, format!("wf tool {tool_name}: {e}")),
                                 }
@@ -497,10 +573,11 @@ impl Application {
             }
             ConfirmAction::StealthOp(op) => {
                 match op {
-                    0 => { crate::stealth::anti_forensics::wipe_on_exit(); self.notify(NotifLevel::Info, "Stealth: forensic wipe complete".into()); }
-                    1 => { let _ = crate::stealth::network::randomise_mac("eth0"); self.notify(NotifLevel::Info, "Stealth: MAC randomised on eth0".into()); }
-                    2 => { let _ = crate::stealth::network::randomise_mac("wlan0"); self.notify(NotifLevel::Info, "Stealth: MAC randomised on wlan0".into()); }
-                    3 => { crate::stealth::identity::spoof_process_name("[kworker/0:1]"); self.notify(NotifLevel::Info, "Stealth: process name spoofed".into()); }
+                    0 => { crate::stealth::ops::StealthEngine::engage_all(); self.notify(NotifLevel::Success, "Stealth: shadow mode active".into()); }
+                    1 => { crate::stealth::anti_forensics::wipe_on_exit(); self.notify(NotifLevel::Info, "Stealth: forensic wipe complete".into()); }
+                    2 => { let _ = crate::stealth::network::randomise_mac("eth0"); self.notify(NotifLevel::Info, "Stealth: MAC randomised on eth0".into()); }
+                    3 => { let _ = crate::stealth::network::randomise_mac("wlan0"); self.notify(NotifLevel::Info, "Stealth: MAC randomised on wlan0".into()); }
+                    4 => { crate::stealth::identity::spoof_process_name("[kworker/0:1]"); self.notify(NotifLevel::Info, "Stealth: process name spoofed".into()); }
                     _ => {}
                 }
             }
@@ -515,13 +592,49 @@ impl Application {
     async fn handle_context_action(&mut self, action: ContextAction) -> Result<()> {
         match action {
             ContextAction::LaunchTool(spec) => {
-                let target = self.state.current_target.clone();
-                match self.executor.launch(&spec, target).await {
-                    Ok(job_id) => {
-                        self.state.register_job(job_id, spec.name.clone());
-                        self.notify(NotifLevel::Success, format!("▶ {} started", spec.name));
+                let raw_target = self.state.current_target.clone();
+                let targets = if raw_target.starts_with('@') {
+                    let path = &raw_target[1..];
+                    match std::fs::read_to_string(path) {
+                        Ok(c) => c.lines().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(),
+                        Err(_) => vec![raw_target],
                     }
-                    Err(e) => self.notify(NotifLevel::Error, format!("Launch failed: {e}")),
+                } else { vec![raw_target] };
+
+                let wordlist = self.state.active_wordlist.clone().unwrap_or_default();
+                for target in targets {
+                    match self.executor.launch(&spec, target, wordlist.clone()).await {
+                        Ok(job_id) => {
+                            self.state.register_job(job_id, spec.name.clone());
+                            self.notify(NotifLevel::Success, format!("▶ {} started", spec.name));
+                        }
+                        Err(e) => self.notify(NotifLevel::Error, format!("Launch failed: {e}")),
+                    }
+                }
+            }
+            ContextAction::PivotTool(tool_name) => {
+                if let Some(spec) = self.executor.registry_find(&tool_name) {
+                    let target = if self.state.active_view == ActiveView::Workspace {
+                        if let Some(p_idx) = self.state.selected_port {
+                            if let Some(host_idx) = self.state.selected_host {
+                                if let (Some(h), Some(p)) = (self.state.hosts.get(host_idx), self.state.ports.get(p_idx)) {
+                                    format!("{}:{}", h.ip, p.port)
+                                } else { self.state.current_target.clone() }
+                            } else { self.state.current_target.clone() }
+                        } else if let Some(h_idx) = self.state.selected_host {
+                             if let Some(h) = self.state.hosts.get(h_idx) { h.ip.clone() }
+                             else { self.state.current_target.clone() }
+                        } else { self.state.current_target.clone() }
+                    } else { self.state.current_target.clone() };
+
+                    let wordlist = self.state.active_wordlist.clone().unwrap_or_default();
+                    match self.executor.launch(&spec, target, wordlist).await {
+                        Ok(job_id) => {
+                            self.state.register_job(job_id, spec.name.clone());
+                            self.notify(NotifLevel::Success, format!("▶ Pivot {} started", spec.name));
+                        }
+                        Err(e) => self.notify(NotifLevel::Error, format!("Pivot failed: {e}")),
+                    }
                 }
             }
             ContextAction::OpenInspector => self.state.open_inspector_for_selected(),
@@ -552,10 +665,11 @@ impl Application {
             return Ok(());
         }
 
-        let target = self.state.current_target.clone();
+        let target   = self.state.current_target.clone();
+        let wordlist = self.state.active_wordlist.clone().unwrap_or_default();
         info!(tool = %spec.name, target = %target, "launching");
 
-        match self.executor.launch(&spec, target).await {
+        match self.executor.launch(&spec, target, wordlist).await {
             Ok(job_id) => {
                 self.state.register_job(job_id, spec.name.clone());
                 self.notify(NotifLevel::Success, format!("▶ {} started (Dashboard [1])", spec.name));

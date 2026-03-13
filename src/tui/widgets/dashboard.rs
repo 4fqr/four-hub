@@ -18,6 +18,22 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
     render_jobs(f, lo.jobs, state);
     render_findings(f, lo.findings, state);
     render_chart(f, lo.chart, state);
+    render_activity(f, lo.activity, state);
+}
+
+fn render_activity(f: &mut Frame, area: Rect, state: &AppState) {
+    use ratatui::widgets::Sparkline;
+    let sparkline = Sparkline::default()
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_set(theme::BORDER_SET)
+                .border_style(theme::style_border_normal())
+                .title(Span::styled(" ◆ ACTIVITY ", theme::style_title())),
+        )
+        .data(&state.activity_log)
+        .style(theme::style_accent());
+    f.render_widget(sparkline, area);
 }
 
 fn render_overview(f: &mut Frame, area: Rect, state: &AppState) {
@@ -118,6 +134,16 @@ fn render_overview(f: &mut Frame, area: Rect, state: &AppState) {
             Span::styled(" Set target    ", theme::style_dim()),
         ]),
     ]);
+    
+    lines.push(Line::raw(""));
+    lines.push(Line::from(Span::styled("  INTELLIGENCE", theme::style_accent())));
+    
+    for sugg in state.intelligence_suggestions().iter().take(4) {
+        lines.push(Line::from(vec![
+            Span::styled("  ", theme::style_dim()),
+            Span::styled(sugg, theme::style_normal()),
+        ]));
+    }
 
     let para = Paragraph::new(lines)
         .block(
@@ -154,11 +180,17 @@ fn render_jobs(f: &mut Frame, area: Rect, state: &AppState) {
                 else { format!("{}h{}m", s/3600, (s%3600)/60) }
             };
             let out_count = job.output.len();
+            let progress_pct = (job.progress * 100.0) as u32;
+            let bar_len = 10;
+            let filled = (job.progress * bar_len as f64) as usize;
+            let bar = format!("[{}{}] {}%", "█".repeat(filled), " ".repeat(bar_len - filled), progress_pct);
+            
             Row::new(vec![
                 Cell::from(job.id[..8.min(job.id.len())].to_string()).style(theme::style_dim()),
                 Cell::from(Span::styled(&job.tool, theme::style_accent())),
                 Cell::from(job.target[..20.min(job.target.len())].to_string()).style(theme::style_normal()),
                 Cell::from(Span::styled(status_text, status_style)),
+                Cell::from(Span::styled(bar, if job.finished { theme::style_dim() } else { theme::style_accent() })),
                 Cell::from(elapsed).style(theme::style_dim()),
                 Cell::from(format!("{}L", out_count)).style(theme::style_dim()),
             ])
@@ -175,15 +207,16 @@ fn render_jobs(f: &mut Frame, area: Rect, state: &AppState) {
         rows,
         [
             Constraint::Length(9),
-            Constraint::Length(18),
-            Constraint::Min(14),
+            Constraint::Length(15),
+            Constraint::Min(10),
             Constraint::Length(9),
+            Constraint::Length(16),
             Constraint::Length(8),
             Constraint::Length(6),
         ],
     )
     .header(
-        Row::new(vec!["ID", "TOOL", "TARGET", "STATUS", "ELAPSED", "LINES"])
+        Row::new(vec!["ID", "TOOL", "TARGET", "STATUS", "PROGRESS", "ELAPSED", "LINES"])
             .style(theme::style_title().add_modifier(Modifier::UNDERLINED)),
     )
     .block(

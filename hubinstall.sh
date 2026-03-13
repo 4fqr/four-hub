@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# four-hub · hubinstall.sh
-# Full setup for Kali Linux.  Run once as root:  sudo bash hubinstall.sh
+
+
 set -euo pipefail
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
@@ -10,13 +10,13 @@ die()  { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "Run as root: sudo bash hubinstall.sh"
 
-# ── 1. APT packages ──────────────────────────────────────────────────────────
+
 ok "Updating apt…"
 apt-get update -qq
 
 ok "Installing apt packages…"
 apt-get install -y \
-    build-essential libpcap-dev libsqlite3-dev \
+    build-essential libpcap-dev libsqlite3-dev libssh2-1-dev \
     python3 python3-pip python3-dev pkg-config \
     curl git tor proxychains4 \
     nmap masscan nikto hydra sqlmap \
@@ -33,7 +33,7 @@ apt-get install -y \
     macchanger arp-scan \
     2>/dev/null || warn "Some apt packages failed — continuing"
 
-# ── 2. amass / subfinder / nuclei — from Go or package ───────────────────────
+
 ok "Installing Go-based tools (amass, subfinder, nuclei)…"
 if command -v go &>/dev/null; then
     go install github.com/owasp-amass/amass/v4/...@latest      2>/dev/null || true
@@ -44,13 +44,13 @@ else
     pip3 install --break-system-packages nuclei 2>/dev/null || true
 fi
 
-# ── 3. volatility3 — pip install, not apt ────────────────────────────────────
+
 ok "Installing volatility3 via pip…"
 pip3 install --break-system-packages volatility3 2>/dev/null \
     || pip3 install volatility3 2>/dev/null \
     || warn "volatility3 install failed — try: pip3 install volatility3"
 
-# ── 4. linpeas — direct download ─────────────────────────────────────────────
+
 ok "Downloading linpeas…"
 mkdir -p /opt/privesc
 curl -fsSL \
@@ -61,7 +61,7 @@ curl -fsSL \
     && ok "linpeas → /usr/local/bin/linpeas" \
     || warn "linpeas download failed — check internet access"
 
-# ── 5. pspy — download static binary ─────────────────────────────────────────
+
 ok "Downloading pspy64…"
 curl -fsSL \
     https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64 \
@@ -70,9 +70,9 @@ curl -fsSL \
     && ok "pspy64 → /usr/local/bin/pspy64" \
     || warn "pspy64 download failed"
 
-# ── 6. wash — part of reaver on Kali (already in PATH after apt) ──────────────
-# On older Kali 'wash' ships inside the reaver package.
-# If still missing, build from source.
+
+
+
 if ! command -v wash &>/dev/null; then
     warn "'wash' not found — building from source…"
     apt-get install -y libpcap-dev libssl-dev 2>/dev/null
@@ -86,36 +86,36 @@ if ! command -v wash &>/dev/null; then
     rm -rf "$TMP"
 fi
 
-# ── 7. Python helpers ─────────────────────────────────────────────────────────
+
 ok "Installing Python packages…"
 pip3 install --break-system-packages \
     python-nmap requests beautifulsoup4 impacket 2>/dev/null \
     || pip3 install python-nmap requests beautifulsoup4 impacket
 
-# ── 8. Rust + four-hub ───────────────────────────────────────────────────────
+
 if ! command -v cargo &>/dev/null; then
     ok "Installing Rust toolchain…"
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
 fi
-# Always source cargo env — handles both fresh install and existing installs.
+
 export PATH="$HOME/.cargo/bin:$PATH"
 [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 
 ok "Building + installing four-hub…  (this may take a few minutes)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
-# PYO3_USE_ABI3_FORWARD_COMPATIBILITY silences PyO3 Python-version mismatch on
-# Python 3.13+ until the crate version is fully caught up.
+
+
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 cargo install --path . 2>&1 | tail -10
 
-# Make four-hub available system-wide (root installed it, but user needs it)
+
 if [ -f "$HOME/.cargo/bin/four-hub" ]; then
     ln -sf "$HOME/.cargo/bin/four-hub" /usr/local/bin/four-hub
     ok "four-hub → /usr/local/bin/four-hub"
 fi
 
-# ── Done ──────────────────────────────────────────────────────────────────────
+
 echo ""
 ok "Installation complete."
 echo -e "   ${GREEN}four-hub${NC}          — main TUI (needs root for raw packets)"

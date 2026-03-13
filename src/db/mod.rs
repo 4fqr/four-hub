@@ -27,7 +27,7 @@ pub struct Port {
     pub protocol: String,
     pub service:  Option<String>,
     pub version:  Option<String>,
-    pub state:    String, // open / closed / filtered
+    pub state:    String,
     pub banner:   Option<String>,
 }
 
@@ -74,7 +74,7 @@ pub struct ScanJob {
     pub tool:       String,
     pub args:       String,
     pub target:     Option<String>,
-    pub status:     String, // running / finished / failed
+    pub status:     String,
     pub exit_code:  Option<i32>,
     pub started_at: DateTime<Utc>,
     pub ended_at:   Option<DateTime<Utc>>,

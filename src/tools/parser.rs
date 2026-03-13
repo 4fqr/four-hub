@@ -41,7 +41,7 @@ static RE_FFUF_HIT: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#""url"\s*:\s*"([^"]+)"\s*,\s*"status"\s*:\s*(\d+)"#).unwrap()
 });
 static RE_ENUM4LINUX_SHARE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"//(\S+)/(\S+)\s+Mapping:.*Access:").unwrap()
+    Regex::new(r"
 });
 static RE_CME_CRED: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\[\+\]\s+(\S+)\s+\d+\s+\S+\s+(\S+):(\S+)\b").unwrap()
@@ -88,6 +88,27 @@ static RE_WAFW00F: Lazy<Regex> = Lazy::new(|| {
 static RE_WPSCAN_VULN: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^\[!\]\s+(.+)").unwrap()
 });
+static RE_4NMAP_PORT: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"Port (\d+) is OPEN").unwrap()
+});
+static RE_4NMAP_SERVICE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\[Service\] (\d+): (.+)").unwrap()
+});
+static RE_4NMAP_VULN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\[VULNERABILITY\] (\d+): (.+)").unwrap()
+});
+static RE_4NMAP_OS: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"Fingerprint: (.+)").unwrap()
+});
+static RE_4GOBUSTER_HIT: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\[\+\] (\S+)\s+\(Status: (\d+), Size: (\d+)\)").unwrap()
+});
+static RE_4HYDRA_SUCCESS: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\[SUCCESS\] Valid (\S+) credentials: (\S+):(\S+)").unwrap()
+});
+static RE_4NIKTO_VULN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\[VULNERABILITY\] (.+) at (https?://\S+)").unwrap()
+});
 pub fn parse_line(spec: &ToolSpec, line: &str, target: &str) -> Vec<ParsedRecord> {
     match spec.name.as_str() {
         "nmap"                              => parse_nmap(line, target),
@@ -99,6 +120,9 @@ pub fn parse_line(spec: &ToolSpec, line: &str, target: &str) -> Vec<ParsedRecord
         "feroxbuster"                       => parse_feroxbuster(line, target),
         "dirb"                              => parse_dirb(line, target),
         "dirsearch"                         => parse_dirsearch(line, target),
+        "4nmap"                             => parse_4nmap(line, target),
+        "4gobuster"                         => parse_4gobuster(line, target),
+        "4hydra"                            => parse_4hydra(line, target),
         "ffuf"                              => parse_ffuf(line, target),
         "enum4linux" | "enum4linux-ng"      => parse_enum4linux(line, target),
         "crackmapexec" | "netexec" | "nxc"  => parse_cme(line, target),
@@ -582,4 +606,107 @@ fn attr(line: &str, name: &str) -> Option<String> {
     let rest   = &line[start + needle.len()..];
     let end    = rest.find('"')?;
     Some(rest[..end].to_string())
+}
+
+fn parse_4nmap(line: &str, target: &str) -> Vec<ParsedRecord> {
+    let mut out = Vec::new();
+    if let Some(caps) = RE_4NMAP_PORT.captures(line) {
+        let pnum: u16 = caps[1].parse().unwrap_or(0);
+        out.push(ParsedRecord::NewPort {
+            host_addr: target.to_string(),
+            port: Port { 
+                id: Uuid::new_v4().to_string(), host_id: String::new(),
+                port: pnum, protocol: "tcp".into(), service: None, 
+                version: None, state: "open".into(), banner: None 
+            },
+        });
+    }
+    if let Some(caps) = RE_4NMAP_SERVICE.captures(line) {
+        let pnum: u16 = caps[1].parse().unwrap_or(0);
+        let svc = caps[2].to_string();
+        out.push(ParsedRecord::NewPort {
+            host_addr: target.to_string(),
+            port: Port { 
+                id: Uuid::new_v4().to_string(), host_id: String::new(),
+                port: pnum, protocol: "tcp".into(), service: Some(svc), 
+                version: None, state: "open".into(), banner: None 
+            },
+        });
+    }
+    if let Some(caps) = RE_4NMAP_VULN.captures(line) {
+        let pnum = &caps[1];
+        let desc = &caps[2];
+        out.push(ParsedRecord::Finding(Finding {
+            id: Uuid::new_v4().to_string(), host_id: None, port_id: None,
+            tool: "4nmap".into(), title: format!("Vuln on Port {}", pnum),
+            description: desc.to_string(), severity: Severity::High,
+            evidence: Some(line.to_string()), created_at: Utc::now(),
+        }));
+    }
+    if let Some(caps) = RE_4NMAP_OS.captures(line) {
+        let os = caps[1].to_string();
+        out.push(finding("4nmap", "OS Fingerprint", &format!("Detected: {os}"), Severity::Info, line));
+    }
+    out
+}
+
+fn parse_4gobuster(line: &str, target: &str) -> Vec<ParsedRecord> {
+    let mut results = Vec::new();
+    if let Some(caps) = RE_4GOBUSTER_HIT.captures(line) {
+        let path = caps[1].to_string();
+        let code = caps[2].to_string();
+        let size = caps[3].to_string();
+        results.push(ParsedRecord::Finding(Finding {
+            id: Uuid::new_v4().to_string(),
+            title: format!("Web Path Found: {}", path),
+            description: format!("Status: {}, Size: {}", code, size),
+            severity: if code == "200" { Severity::Medium } else { Severity::Info },
+            tool: "4gobuster".into(),
+            host: target.to_string(),
+            created_at: Utc::now(),
+            evidence: Some(line.to_string()),
+            ..Default::default()
+        }));
+    }
+    results
+}
+
+fn parse_4hydra(line: &str, target: &str) -> Vec<ParsedRecord> {
+    let mut results = Vec::new();
+    if let Some(caps) = RE_4HYDRA_SUCCESS.captures(line) {
+        let proto = caps[1].to_string();
+        let user  = caps[2].to_string();
+        let pass  = caps[3].to_string();
+        results.push(ParsedRecord::Finding(Finding {
+            id: Uuid::new_v4().to_string(),
+            title: format!("Cracked Credentials ({})", proto),
+            description: format!("Found valid login for {} on {}", user, target),
+            severity: Severity::Critical,
+            tool: "4hydra".into(),
+            host: target.to_string(),
+            created_at: Utc::now(),
+            metadata: Some(format!("{{\"user\": \"{}\", \"pass\": \"{}\"}}", user, pass)),
+            ..Default::default()
+        }));
+    }
+    results
+}
+
+fn parse_4nikto(line: &str, _target: &str) -> Vec<ParsedRecord> {
+    let mut results = Vec::new();
+    if let Some(caps) = RE_4NIKTO_VULN.captures(line) {
+        let desc = caps[1].to_string();
+        let url  = caps[2].to_string();
+        results.push(ParsedRecord::Finding(Finding {
+            id: Uuid::new_v4().to_string(),
+            title: desc,
+            description: format!("Discovered via 4nikto scan"),
+            severity: Severity::High,
+            tool: "4nikto".into(),
+            host: url,
+            created_at: Utc::now(),
+            metadata: None,
+        }));
+    }
+    results
 }

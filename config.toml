@@ -1,72 +1,72 @@
-# ─── Four-Hub · config.toml ───────────────────────────────────────────────────
-# Copy to ~/.config/four-hub/config.toml and customise as needed.
-# All paths accept ~ expansion.
 
-# ── General ───────────────────────────────────────────────────────────────────
+
+
+
+
 [general]
-# Human-readable project / engagement name stored in reports.
+
 project_name       = "Engagement 1"
 
-# Directory for encrypted SQLite database.
+
 data_dir           = "~/.local/share/four-hub"
 
-# Extra tool manifest files (in addition to built-ins).
-# tools.toml in this directory is loaded automatically.
+
+
 extra_tools_paths  = []
 
-# ── Cryptography ──────────────────────────────────────────────────────────────
-[crypto]
-# Argon2id parameters.  Increase m_cost on high-memory systems.
-m_cost   = 65536    # KiB of memory
-t_cost   = 3        # iterations
-p_cost   = 1        # parallelism
 
-# Salt for KDF – a random 256-bit hex string.
-# If empty, four-hub generates a fresh one on first run and writes it back.
+[crypto]
+
+m_cost   = 65536
+t_cost   = 3
+p_cost   = 1
+
+
+
 salt_hex = ""
 
-# ── Network / Proxy ───────────────────────────────────────────────────────────
+
 [network]
-# Set to true to route all spawned tool traffic through proxychains.
+
 use_proxychains    = false
 proxychains_bin    = "proxychains4"
 
-# ── Stealth ───────────────────────────────────────────────────────────────────
+
 [stealth]
-# Spoof /proc/self/comm to this string on startup.
+
 process_name       = "kworker/2:1"
 
-# Wipe shell history and /tmp artefacts on clean exit.
+
 anti_forensics     = true
 
-# Lock all sensitive memory regions (requires CAP_IPC_LOCK or root).
+
 mlock_memory       = true
 
-# Randomise the MAC address of this interface before each scan.
-# Set to "" to disable.
+
+
 randomise_mac_iface = ""
 
-# ── UI ────────────────────────────────────────────────────────────────────────
+
 [ui]
-# Colour theme: "cyberpunk" is the only built-in theme.
+
 theme              = "cyberpunk"
 
-# Target TUI frame-rate (frames per second).
+
 fps                = 30
 
-# Mouse support.
+
 enable_mouse       = true
 
-# ── REST API ──────────────────────────────────────────────────────────────────
+
 [api]
-# Exposes a minimal JSON REST API for scripted interaction.
+
 enabled            = false
 bind               = "127.0.0.1:7878"
 
-# ── Logging ───────────────────────────────────────────────────────────────────
+
 [logging]
-# Log directory.  Logs rotate daily.
+
 log_dir            = "~/.local/share/four-hub/logs"
 
-# One of: trace, debug, info, warn, error
+
 level              = "info"

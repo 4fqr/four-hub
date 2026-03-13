@@ -34,7 +34,7 @@ class NiktoWrapper(ToolWrapper):
         if not msg or msg.startswith("-") or len(msg) < 10:
             return
 
-        # Determine severity.
+
         cve_match   = _RE_CVE.search(msg)
         osvdb_match = _RE_OSVDB.search(msg)
         sev = "info"

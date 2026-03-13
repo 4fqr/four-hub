@@ -10,7 +10,7 @@ from typing import Iterator
 
 from ..plugin_api import Finding, ToolWrapper, emit
 
-# ── Patterns ──────────────────────────────────────────────────────────────────
+
 
 _RE_PORT    = re.compile(r"^(\d+)/(tcp|udp)\s+(open|filtered|closed)\s+(\S+)(?:\s+(.*))?$")
 _RE_SCRIPT  = re.compile(r"\|\s+([\w-]+):\s+(.*)")
@@ -31,7 +31,7 @@ class NmapWrapper(ToolWrapper):
     def parse_line(self, line: str, target: str) -> Iterator[Finding]:
         line = line.strip()
 
-        # Open port
+
         m = _RE_PORT.match(line)
         if m:
             port, proto, state, service, version = m.groups()
@@ -53,7 +53,7 @@ class NmapWrapper(ToolWrapper):
                 yield finding
             return
 
-        # OS detection
+
         m = _RE_OS.match(line)
         if m:
             finding = self.finding(
@@ -91,7 +91,7 @@ class NmapWrapper(ToolWrapper):
                     if service_el is not None else ""
                 )
 
-                # Script output findings
+
                 for script_el in port_el.findall("script"):
                     sid    = script_el.get("id", "")
                     output = script_el.get("output", "")

@@ -74,6 +74,7 @@ fn render_frame(f: &mut Frame, state: &AppState) {
         ActiveView::Workspace    => widgets::workspace::render(f, root.content, state),
         ActiveView::Inspector    => widgets::inspector::render(f, root.content, state),
         ActiveView::Terminal     => widgets::terminal::render(f, root.content, state),
+        ActiveView::Wordlists    => widgets::wordlists::render(f, root.content, state),
     }
     if let Some(popup) = &state.popup {
         let area = f.size();
@@ -88,6 +89,7 @@ fn render_statusbar(f: &mut Frame, area: Rect, state: &AppState) {
         ActiveView::Workspace,
         ActiveView::Inspector,
         ActiveView::Terminal,
+        ActiveView::Wordlists,
     ]
     .iter()
     .enumerate()
@@ -111,6 +113,7 @@ fn render_statusbar(f: &mut Frame, area: Rect, state: &AppState) {
         ActiveView::Workspace    => 2,
         ActiveView::Inspector    => 3,
         ActiveView::Terminal     => 4,
+        ActiveView::Wordlists    => 5,
     };
 
     let tabs = Tabs::new(titles)
@@ -358,10 +361,11 @@ fn render_popup(f: &mut Frame, area: Rect, popup: &PopupKind, state: &AppState) 
 
         PopupKind::StealthMenu { selected } => {
             let ops = [
-                "0  Forensic wipe (history + temp files)",
-                "1  Randomise MAC — eth0",
-                "2  Randomise MAC — wlan0",
-                "3  Spoof process name → [kworker/0:1]",
+                "0  Shadow Mode (Engage all layers)",
+                "1  Forensic wipe (history + temp files)",
+                "2  Randomise MAC — eth0",
+                "3  Randomise MAC — wlan0",
+                "4  Spoof process name → [kworker/0:1]",
             ];
             let h = ops.len() as u16 + 4;
             let rect = centre_rect(54, h, area);
@@ -384,6 +388,29 @@ fn render_popup(f: &mut Frame, area: Rect, popup: &PopupKind, state: &AppState) 
                 )
                 .style(theme::style_popup());
             f.render_widget(list, rect);
+        }
+
+        PopupKind::ToolConfigInput { tool_name, args } => {
+            let rect = centre_rect(70, 7, area);
+            f.render_widget(Clear, rect);
+            let display = format!("{args}█");
+            let para = Paragraph::new(vec![
+                Line::from(Span::styled(format!("  Tool: {}", tool_name), theme::style_accent())),
+                Line::raw(""),
+                Line::from(Span::styled(display, theme::style_warning())),
+            ])
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(theme::BORDER_SET)
+                    .border_style(theme::style_border_focused())
+                    .title(Span::styled(
+                        " ◆ CONFIGURE ARGUMENTS  [Enter] Launch   [Esc] Cancel ",
+                        theme::style_title(),
+                    )),
+            )
+            .style(theme::style_popup());
+            f.render_widget(para, rect);
         }
     }
 }

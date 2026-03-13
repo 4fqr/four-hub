@@ -23,6 +23,27 @@ macro_rules! tool {
             proxychains:  true,
             interactive:  false,
             tags:         vec![],
+            is_builtin:   false,
+        }
+    };
+}
+
+macro_rules! builtin_tool {
+    ($name:expr, $desc:expr, $cat:expr, $tt:expr, $args:expr) => {
+        ToolSpec {
+            name:         $name.into(),
+            binary:       format!("builtin:{}", $name),
+            description:  $desc.into(),
+            category:     $cat.into(),
+            target_type:  $tt,
+            target_hint:  String::new(),
+            default_args: $args.iter().map(|s: &&str| s.to_string()).collect(),
+            wrapper:      None,
+            needs_root:   false,
+            proxychains:  false,
+            interactive:  false,
+            tags:         vec!["builtin".into(), "null".into()],
+            is_builtin:   true,
         }
     };
 }
@@ -95,6 +116,17 @@ impl ToolRegistry {
 
 fn builtin_tools() -> Vec<ToolSpec> {
     vec![
+        builtin_tool!("4nmap",     "Null-Optimized Port Scanner (High-speed Rust SYN/TCP)", 
+                      "Null", TargetType::IpOrCidr,  &["--top-ports", "1000", "--threads", "100", "{target}"]),
+        builtin_tool!("4gobuster", "Null-Speed Web Fuzzer (Recursive, Concurrent)", 
+                      "Null", TargetType::Url,         &["-w", "{wordlist}", "-t", "100", "{target}"]),
+        builtin_tool!("4hydra",    "Null-Force Login Brute-forcer (Optimized)", 
+                      "Null", TargetType::IpPort,      &["-u", "admin", "-w", "{wordlist}", "{target}"]),
+        builtin_tool!("4nikto",    "Null-Scan Web Vulnerability Scanner", 
+                      "Null", TargetType::Url,         &["{target}"]),
+        builtin_tool!("4subfinder", "Null-Enumeration Subdomain Finder",
+                      "Null", TargetType::Domain,      &["-w", "{wordlist}", "{target}"]),
+        
         tool!("nmap",       "nmap",       "Network mapper — port/service/OS detection",
               "Recon", TargetType::IpOrCidr,  &["-sV", "-sC", "-O", "--open", "{target}"], true),
         tool!("masscan",    "masscan",    "Fastest port scanner — full Internet-speed",
@@ -336,13 +368,13 @@ fn builtin_tools() -> Vec<ToolSpec> {
         tool!("enum4linux-ng","enum4linux-ng","Modern enum4linux rewrite with JSON output",
               "SMB/AD", TargetType::IpOrDomain,       &["-A", "-oA", "/tmp/enum4linux", "{target}"], false),
         tool!("smbclient",  "smbclient",  "SMB share browser and file transfer",
-              "SMB/AD", TargetType::IpOrDomain,       &["-L", "//'{target}'", "-N"], false),
+              "SMB/AD", TargetType::IpOrDomain,       &["-L", "
         tool!("smbmap",     "smbmap",     "SMB share enumeration with permissions",
               "SMB/AD", TargetType::IpOrDomain,       &["-H", "{target}", "--no-banner"], false),
         tool!("rpcclient",  "rpcclient",  "Samba RPC client for AD enumeration",
               "SMB/AD", TargetType::IpOrDomain,       &["-U", "", "{target}", "-c", "enumdomusers"], false),
         tool!("ldapsearch", "ldapsearch", "LDAP directory search and enumeration",
-              "SMB/AD", TargetType::IpOrDomain,       &["-x", "-H", "ldap://{target}", "-b", "dc=domain,dc=com"], false),
+              "SMB/AD", TargetType::IpOrDomain,       &["-x", "-H", "ldap:
         tool!("bloodhound-py","bloodhound-python","BloodHound data ingestor for AD mapping",
               "SMB/AD", TargetType::IpOrDomain,       &["-d", "{target}", "-u", "user", "-p", "pass", "-c", "all", "-ns", "{target}"], false),
         tool!("kerbrute",   "kerbrute",   "Kerberos username enum and brute-force",

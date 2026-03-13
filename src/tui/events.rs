@@ -6,6 +6,7 @@ pub enum AppEvent {
     Terminal(Event),
     Tick,
     ToolOutput { id: String, line: String },
+    ToolProgress { id: String, progress: f64 },
     ToolFinished { id: String, exit_code: i32 },
     NewFinding(Finding),
     UpsertHost(Host),

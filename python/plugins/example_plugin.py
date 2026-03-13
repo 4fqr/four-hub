@@ -28,7 +28,7 @@ import json
 import pathlib
 import datetime
 
-# ── persistent output file ────────────────────────────────────────────────────
+
 _OUTPUT = pathlib.Path("/tmp/four_hub_plugin_demo.jsonl")
 
 
@@ -41,8 +41,8 @@ def on_new_finding(finding: dict) -> None:
     with _OUTPUT.open("a") as fh:
         fh.write(json.dumps(entry) + "\n")
 
-    # Optional: print to the Four-Hub TUI notification panel.
-    # Any string returned from this hook is shown as a notification.
+
+
     sev = finding.get("severity", "info").upper()
     print(f"[PLUGIN] [{sev}] {finding.get('title', '?')}")
 

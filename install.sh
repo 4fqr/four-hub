@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ── Four-Hub installer ────────────────────────────────────────────────────────
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,7 +11,7 @@ echo "║      Four-Hub  installer         ║"
 echo "╚══════════════════════════════════╝"
 echo ""
 
-# Make sure Rust toolchain is available.
+
 if ! command -v cargo &>/dev/null; then
     echo "[!] Rust/cargo not found."
     echo "    Install Rust: https://rustup.rs"
@@ -30,8 +30,8 @@ if command -v four-hub &>/dev/null; then
     echo "✓ four-hub installed successfully!"
     echo ""
     echo "  Usage:"
-    echo "    four-hub                   # launch TUI"
-    echo "    four-hub --help            # show CLI options"
+    echo "    four-hub
+    echo "    four-hub --help
     echo ""
 else
     echo ""

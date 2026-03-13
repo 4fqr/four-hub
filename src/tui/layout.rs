@@ -12,10 +12,10 @@ impl RootLayout {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // status bar
-                Constraint::Min(0),     // content
-                Constraint::Length(1),  // notification strip
-                Constraint::Length(1),  // help bar
+                Constraint::Length(3),
+                Constraint::Min(0),
+                Constraint::Length(1),
+                Constraint::Length(1),
             ])
             .split(area);
         Self {
@@ -31,6 +31,7 @@ pub struct DashboardLayout {
     pub jobs:     Rect,
     pub findings: Rect,
     pub chart:    Rect,
+    pub activity: Rect,
 }
 
 impl DashboardLayout {
@@ -45,13 +46,14 @@ impl DashboardLayout {
             .split(h[1]);
         let right_bottom = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(30), Constraint::Percentage(20)])
             .split(right[1]);
         Self {
             stats:    h[0],
             jobs:     right[0],
             findings: right_bottom[0],
             chart:    right_bottom[1],
+            activity: right_bottom[2],
         }
     }
 }

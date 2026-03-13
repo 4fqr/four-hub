@@ -12,10 +12,43 @@ use ratatui::{
 };
 
 pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
-    let lo = WorkspaceLayout::compute(area);
+    let main_lo = ratatui::layout::Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([ratatui::layout::Constraint::Length(3), ratatui::layout::Constraint::Min(0)])
+        .split(area);
+    
+    render_summary(f, main_lo[0], state);
+    
+    let lo = WorkspaceLayout::compute(main_lo[1]);
     render_hosts(f, lo.hosts, state);
     render_ports(f, lo.ports, state);
     render_findings(f, lo.findings, state);
+}
+
+fn render_summary(f: &mut Frame, area: Rect, state: &AppState) {
+    let crit = state.findings.iter().filter(|fi| fi.severity == crate::db::Severity::Critical).count();
+    let high = state.findings.iter().filter(|fi| fi.severity == crate::db::Severity::High).count();
+    let med  = state.findings.iter().filter(|fi| fi.severity == crate::db::Severity::Medium).count();
+    
+    let content = vec![
+        Line::from(vec![
+            Span::styled(" ◆ TACTICAL OVERVIEW ", theme::style_title()),
+            Span::raw("  "),
+            Span::styled(format!("🔥 CRITICAL: {}", crit), if crit > 0 { theme::style_critical() } else { theme::style_dim() }),
+            Span::raw("  "),
+            Span::styled(format!("⚠️ HIGH: {}", high), if high > 0 { theme::style_high() } else { theme::style_dim() }),
+            Span::raw("  "),
+            Span::styled(format!("🔸 MED: {}", med), theme::style_dim()),
+            Span::raw("    "),
+            Span::styled("TARGET: ", theme::style_dim()),
+            Span::styled(&state.current_target, theme::style_accent()),
+        ])
+    ];
+    
+    let para = Paragraph::new(content)
+        .block(Block::default().borders(Borders::ALL).border_set(theme::BORDER_SET).border_style(theme::style_border_normal()))
+        .style(theme::style_panel());
+    f.render_widget(para, area);
 }
 
 fn render_hosts(f: &mut Frame, area: Rect, state: &AppState) {
