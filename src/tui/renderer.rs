@@ -192,6 +192,13 @@ fn render_helpbar(f: &mut Frame, area: Rect, state: &AppState) {
             Span::styled("[x]",    theme::style_keybind()), Span::raw(" Kill job  "),
             Span::styled("[?]",    theme::style_keybind()), Span::raw(" Help"),
         ],
+        ActiveView::Wordlists => vec![
+            Span::styled("[q]",    theme::style_keybind()), Span::raw(" Quit  "),
+            Span::styled("[1-5]",  theme::style_keybind()), Span::raw(" Views  "),
+            Span::styled("[↑/↓]",   theme::style_keybind()), Span::raw(" Select  "),
+            Span::styled("[Enter]", theme::style_keybind()), Span::raw(" Set Active  "),
+            Span::styled("[?]",    theme::style_keybind()), Span::raw(" Help"),
+        ],
     };
     let line = Line::from(spans);
     let para = Paragraph::new(line).style(theme::style_dim());

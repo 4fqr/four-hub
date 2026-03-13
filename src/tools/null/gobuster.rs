@@ -20,7 +20,10 @@ pub async fn run_4gobuster(
         }
     };
 
-    let words: Vec<String> = wordlist.lines().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    let words: Vec<String> = wordlist.lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<String>>();
     
 
     let client = Client::builder()
@@ -37,6 +40,7 @@ pub async fn run_4gobuster(
 
     let test_url = format!("{}nullsector_{}", base_url, chrono::Utc::now().timestamp());
     if let Ok(resp) = client.get(&test_url).send().await {
+        let resp: reqwest::Response = resp;
         if resp.status().is_success() {
             let _ = tx.send("[WARN] Wildcard response detected (404 returns 200). Adjusting...".into());
         }
@@ -61,6 +65,7 @@ pub async fn run_4gobuster(
                 
                 match timeout(Duration::from_secs(3), client_inner.get(&url).send()).await {
                     Ok(Ok(resp)) => {
+                        let resp: reqwest::Response = resp;
                         let code = resp.status();
                         if code.is_success() || code == StatusCode::FORBIDDEN || code == StatusCode::MOVED_PERMANENTLY {
                             let size = resp.content_length().unwrap_or(0);

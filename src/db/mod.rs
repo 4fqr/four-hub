@@ -40,7 +40,9 @@ pub struct Finding {
     pub title:       String,
     pub description: String,
     pub severity:    Severity,
+    pub host:        String,
     pub evidence:    Option<String>,
+    pub metadata:    Option<String>,
     pub created_at:  DateTime<Utc>,
 }
 
@@ -234,8 +236,8 @@ impl Database {
         let conn = self.conn.lock().expect("db mutex poisoned");
         conn.execute(
             "INSERT OR IGNORE INTO findings
-               (id, host_id, port_id, tool, title, description, severity, evidence, created_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+               (id, host_id, port_id, tool, title, description, severity, host, evidence, metadata, created_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
             params![
                 f.id,
                 f.host_id,
@@ -244,7 +246,9 @@ impl Database {
                 self.enc(&f.title)?,
                 self.enc(&f.description)?,
                 f.severity.as_str(),
+                self.enc(&f.host)?,
                 f.evidence.as_deref().map(|s| self.enc(s)).transpose()?,
+                f.metadata.as_deref().map(|s| self.enc(s)).transpose()?,
                 f.created_at.to_rfc3339(),
             ],
         )?;
@@ -254,7 +258,7 @@ impl Database {
     pub fn all_findings(&self) -> Result<Vec<Finding>> {
         let conn = self.conn.lock().expect("db mutex poisoned");
         let mut stmt = conn.prepare(
-            "SELECT id, host_id, port_id, tool, title, description, severity, evidence, created_at
+            "SELECT id, host_id, port_id, tool, title, description, severity, host, evidence, metadata, created_at
              FROM findings ORDER BY created_at DESC"
         )?;
         let rows = stmt.query_map([], |row| {
@@ -266,14 +270,16 @@ impl Database {
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
-                row.get::<_, Option<String>>(7)?,
-                row.get::<_, String>(8)?,
+                row.get::<_, String>(7)?,
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, Option<String>>(9)?,
+                row.get::<_, String>(10)?,
             ))
         })?;
 
         let mut findings = Vec::new();
         for r in rows {
-            let (id, hid, pid, tool, title_enc, desc_enc, sev, ev_enc, ts) = r?;
+            let (id, hid, pid, tool, title_enc, desc_enc, sev, host_enc, ev_enc, meta_enc, ts) = r?;
             findings.push(Finding {
                 id,
                 host_id:     hid,
@@ -282,7 +288,9 @@ impl Database {
                 title:       self.dec(&title_enc).unwrap_or_default(),
                 description: self.dec(&desc_enc).unwrap_or_default(),
                 severity:    Severity::from_str(&sev),
+                host:        self.dec(&host_enc).unwrap_or_default(),
                 evidence:    self.dec_opt(ev_enc),
+                metadata:    self.dec_opt(meta_enc),
                 created_at:  DateTime::parse_from_rfc3339(&ts)
                     .map(|dt| dt.with_timezone(&Utc))
                     .unwrap_or_else(|_| Utc::now()),

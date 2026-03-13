@@ -39,7 +39,9 @@ CREATE TABLE IF NOT EXISTS findings (
     title       TEXT NOT NULL,
     description TEXT NOT NULL,
     severity    TEXT NOT NULL DEFAULT 'info',
+    host        TEXT NOT NULL,
     evidence    TEXT,
+    metadata    TEXT,
     created_at  TEXT NOT NULL
 );
 

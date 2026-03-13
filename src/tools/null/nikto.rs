@@ -35,6 +35,7 @@ pub async fn run_4nikto(target: String, tx: mpsc::UnboundedSender<String>) -> Re
     for (i, (path, desc)) in checks.into_iter().enumerate() {
         let url = format!("{}{}", base_url, path);
         if let Ok(resp) = client.get(&url).send().await {
+            let resp: reqwest::Response = resp;
             if resp.status().is_success() {
                 let _ = tx.send(format!("[VULNERABILITY] {} at {}", desc, url));
             }

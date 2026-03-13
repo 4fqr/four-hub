@@ -10,12 +10,15 @@ pub async fn run_4subfinder(target: String, wordlist_path: String, tx: mpsc::Unb
     let wordlist = match std::fs::read_to_string(&wordlist_path) {
         Ok(s) => s,
         Err(_) => {
-            let _ = tx.send("Wordlist missing - using internal elite list".into());
-            include_str!("../../../python/subdomains.txt").to_string()
+            let _ = tx.send("Wordlist missing - using internal list".into());
+            "www\nmail\nftp\napi\ndev\nstaging\nblog".to_string()
         }
     };
 
-    let subdomains: Vec<String> = wordlist.lines().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    let subdomains: Vec<String> = wordlist.lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<String>>();
     let _ = tx.send(format!("[INFO] 4subfinder Architect: Discovering assets for {}", target));
     let _ = tx.send(format!("[PROGRESS] 5%"));
 
@@ -30,7 +33,7 @@ pub async fn run_4subfinder(target: String, wordlist_path: String, tx: mpsc::Unb
     let (res_tx, mut res_rx) = mpsc::channel(100);
 
     for i in 0..threads {
-        let subs = Arc::clone(&subs_arc);
+        let subs: Arc<Vec<String>> = Arc::clone(&subs_arc);
         let t = Arc::clone(&target_arc);
         let tx_res = res_tx.clone();
         

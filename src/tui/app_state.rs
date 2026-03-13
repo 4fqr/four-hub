@@ -87,6 +87,8 @@ pub struct AppState {
     pub split_x:       u16,
     pub pending_terminal_cmd: Option<String>,
     pub active_wordlist:      Option<String>,
+    pub selected_wordlist:     usize,
+    pub wordlist_files:        Vec<String>,
     pub activity_log:         Vec<u64>,
 }
 

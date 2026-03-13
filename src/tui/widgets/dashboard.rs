@@ -138,7 +138,7 @@ fn render_overview(f: &mut Frame, area: Rect, state: &AppState) {
     lines.push(Line::raw(""));
     lines.push(Line::from(Span::styled("  INTELLIGENCE", theme::style_accent())));
     
-    for sugg in state.intelligence_suggestions().iter().take(4) {
+    for sugg in state.intelligence_suggestions().into_iter().take(4) {
         lines.push(Line::from(vec![
             Span::styled("  ", theme::style_dim()),
             Span::styled(sugg, theme::style_normal()),

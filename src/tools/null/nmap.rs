@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use std::sync::Arc;
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::time::timeout;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub async fn run_4nmap(target: String, ports: Vec<u16>, threads: usize, timeout_ms: u64, tx: mpsc::UnboundedSender<String>) -> Result<()> {
 

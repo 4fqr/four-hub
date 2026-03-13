@@ -79,12 +79,12 @@ pub fn builtin_workflows() -> Vec<Workflow> {
             description: "Null-Suite proprietary pipeline (4nmap → 4gobuster → 4nikto)".into(),
             stages: vec![
                 WorkflowStage {
-                    name: "Mapping",
+                    name: "Mapping".into(),
                     tools: vec!["4nmap".into()],
                     concurrency: Concurrency::Sequential,
                 },
                 WorkflowStage {
-                    name: "Fuzzing",
+                    name: "Fuzzing".into(),
                     tools: vec!["4gobuster".into(), "4nikto".into()],
                     concurrency: Concurrency::Parallel,
                 },

@@ -23,7 +23,10 @@ pub async fn run_4hydra(
         }
     };
 
-    let passwords: Vec<String> = wordlist.lines().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    let passwords: Vec<String> = wordlist.lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<String>>();
     let client = Client::builder()
         .timeout(Duration::from_millis(timeout_ms))
         .danger_accept_invalid_certs(true)
@@ -71,6 +74,7 @@ pub async fn run_4hydra(
                         .send()
                         .await {
                             Ok(resp) => {
+                                let resp: reqwest::Response = resp;
                                 if resp.status().is_success() {
                                     let _ = tx_inner.send(format!("[SUCCESS] Valid HTTP credentials: {}:{}", user_inner, pass));
                                     break;

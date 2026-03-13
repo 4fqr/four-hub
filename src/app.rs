@@ -638,6 +638,7 @@ impl Application {
                 }
             }
             ContextAction::OpenInspector => self.state.open_inspector_for_selected(),
+            ContextAction::AnalyzeService => { self.notify(NotifLevel::Info, "Service analysis initiated".into()); }
             ContextAction::CopyText(s) => {
                 let _ = std::process::Command::new("sh")
                     .arg("-c")
