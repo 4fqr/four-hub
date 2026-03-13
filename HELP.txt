@@ -1,6 +1,5 @@
-
-🪐 FOUR-HUB v1.0.0-ARCHITECT — Elite Offensive Command Centre
-══════════════════════════════════════════════════════════════════════
+FOUR-HUB v1.0.0-ARCHITECT - Offensive Command Center
+======================================================================
 
 USAGE:
   four-hub [OPTIONS]
@@ -17,7 +16,7 @@ GLOBAL CONTROLS:
 PRIMARY VIEWS:
 
   [F1] DASHBOARD
-       Session heartbeat, live-feed activity sparkline, intelligence suggestions,
+       Session heartbeat, live-feed activity monitoring, intelligence suggestions,
        and vulnerability severity breakdown.
 
   [F2] LAUNCHER
@@ -28,29 +27,29 @@ PRIMARY VIEWS:
   [F3] WORKSPACE
        Strategic map of the target environment.
        Cycle panels (Hosts, Ports, Findings) with [Tab].
-       [Enter] on a host to see port map. [Enter] on a finding to inspect.
+       [Enter] on a host to view port map. [Enter] on a finding to inspect.
 
   [F4] INSPECTOR
        Forensic analysis of scan results. 
-       Syntax highlighting for banners. Scroll with [↑/↓] or [PgUp/PgDn].
-       Export specific findings with [e].
+       Syntax highlighting for banners. Scroll with [Up/Down] or [PgUp/PgDn].
+       Export individual findings with [e].
 
   [F5] TERMINAL
        Integrated pseudo-terminal (Pseudo-TTY).
-       Execute arbitrary OS commands inside the encrypted enclave.
-       Command history saved in the encrypted vault.
+       Execute system commands within the encrypted environment.
+       Command history is stored within the encrypted vault.
 
-ELITE OPS (Stealth Menu):
-  • 0. Shadow Mode: Fully engages all 10 layers of anti-forensics.
-  • 1. Forensic Wipe: Overwrites and deletes lingering temp traces.
-  • 2/3. MAC Shuffler: Changes NIC hardware identifier.
-  • 4. Personality Spoof: Changes process name to [kworker].
+OPERATIONAL SECURITY (Stealth Menu):
+  - 0. Shadow Mode: Enables all anti-forensics layers.
+  - 1. Forensic Wipe: Securely overwrites temporary session data.
+  - 2/3. MAC Shuffler: Randomizes NIC hardware identifiers.
+  - 4. Identity Spoof: Renames the process to a standard kernel worker.
 
-CONFIG & VAULT:
-  Your session is protected by AES-256 encryption.
-  Config location: ~/.config/four-hub/config.toml
-  Plugins: Drop .py scripts into ~/.local/share/four-hub/plugins/
+CONFIGURATION & PERSISTENCE:
+  Your session is protected by AES-256-GCM encryption.
+  Configuration path: ~/.config/four-hub/config.toml
+  Plugin directory:  ~/.local/share/four-hub/plugins/
 
-ETHICAL WARNING:
-  Execution of these tools implies ownership of the target or explicit written
-  authorization. Improper use may be a violation of the Computer Fraud and Abuse Act.
+LEGAL NOTICE:
+  Execution of these modules requires explicit authorization from the target owner.
+  Unlicensed use is a violation of international cybercrime statutes.

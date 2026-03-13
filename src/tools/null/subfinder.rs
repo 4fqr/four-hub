@@ -16,7 +16,7 @@ pub async fn run_4subfinder(target: String, wordlist_path: String, tx: mpsc::Unb
     };
 
     let subdomains: Vec<String> = wordlist.lines().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-    let _ = tx.send(format!("🚀 4subfinder Architect: Discovering assets for {}", target));
+    let _ = tx.send(format!("[INFO] 4subfinder Architect: Discovering assets for {}", target));
     let _ = tx.send(format!("[PROGRESS] 5%"));
 
     let mut found = HashSet::new();
@@ -65,7 +65,7 @@ pub async fn run_4subfinder(target: String, wordlist_path: String, tx: mpsc::Unb
     for h in handles { let _ = h.await; }
 
     let _ = tx.send(format!("[PROGRESS] 95%"));
-    let _ = tx.send(format!("✨ Phase 2: Passive OSINT Scraping (Simulated)..."));
+    let _ = tx.send(format!("[INFO] Phase 2: Passive OSINT Scraping (Simulated)..."));
     tokio::time::sleep(Duration::from_millis(1500)).await;
     
 
@@ -81,6 +81,6 @@ pub async fn run_4subfinder(target: String, wordlist_path: String, tx: mpsc::Unb
     }
 
     let _ = tx.send(format!("[PROGRESS] 100%"));
-    let _ = tx.send(format!("🏆 4subfinder complete. {} assets identified.", found.len()));
+    let _ = tx.send(format!("[FINISH] 4subfinder complete. {} assets identified.", found.len()));
     Ok(())
 }

@@ -14,7 +14,7 @@ pub async fn run_4nikto(target: String, tx: mpsc::UnboundedSender<String>) -> Re
     let base_url = if target.starts_with("http") { target } else { format!("http://{}", target) };
     let base_url = if base_url.ends_with('/') { base_url } else { format!("{}/", base_url) };
 
-    let _ = tx.send(format!("🚀 4nikto Elite Powerhouse started on {}", base_url));
+    let _ = tx.send(format!("[INFO] 4nikto Elite Powerhouse started on {}", base_url));
     let _ = tx.send("[PROGRESS] 10%".into());
 
     let checks = vec![
@@ -44,6 +44,6 @@ pub async fn run_4nikto(target: String, tx: mpsc::UnboundedSender<String>) -> Re
     }
 
     let _ = tx.send("[PROGRESS] 100%".into());
-    let _ = tx.send("🏆 4nikto Elite scan complete.".into());
+    let _ = tx.send("[FINISH] 4nikto Elite scan complete.".into());
     Ok(())
 }

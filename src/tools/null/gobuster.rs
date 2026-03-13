@@ -31,14 +31,14 @@ pub async fn run_4gobuster(
         .build()?;
 
     let base_url = if target.ends_with('/') { target } else { format!("{}/", target) };
-    let _ = tx.send(format!("🚀 4gobuster Architect Edition: Fuzzing {} ({} threads)", base_url, threads));
+    let _ = tx.send(format!("[INFO] 4gobuster Architect Edition: Fuzzing {} ({} threads)", base_url, threads));
     let _ = tx.send(format!("[PROGRESS] 2%"));
 
 
     let test_url = format!("{}nullsector_{}", base_url, chrono::Utc::now().timestamp());
     if let Ok(resp) = client.get(&test_url).send().await {
         if resp.status().is_success() {
-            let _ = tx.send("⚠️ Warning: Wildcard response detected (404 returns 200). Adjusting...".into());
+            let _ = tx.send("[WARN] Wildcard response detected (404 returns 200). Adjusting...".into());
         }
     }
 
@@ -83,6 +83,6 @@ pub async fn run_4gobuster(
     }
 
     let _ = tx.send("[PROGRESS] 100%".into());
-    let _ = tx.send("🏆 4gobuster Architect Edition complete.".into());
+    let _ = tx.send("[FINISH] 4gobuster Architect Edition complete.".into());
     Ok(())
 }

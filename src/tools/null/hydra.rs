@@ -32,7 +32,7 @@ pub async fn run_4hydra(
     let is_ssh = target.ends_with(":22") || !target.contains("://") && !target.contains(':');
     let mode = if is_ssh { "SSH" } else { "HTTP-Basic" };
 
-    let _ = tx.send(format!("🚀 4hydra Architect starting on {} mode:{} (User: {}, {} passwords)", target, mode, user, passwords.len()));
+    let _ = tx.send(format!("[INFO] 4hydra Architect starting on {} mode:{} (User: {}, {} passwords)", target, mode, user, passwords.len()));
     
     let pass_arc = Arc::new(passwords);
     let chunk_size = (pass_arc.len() + threads - 1) / threads;
@@ -91,6 +91,6 @@ pub async fn run_4hydra(
     }
 
     let _ = tx.send("[PROGRESS] 100%".into());
-    let _ = tx.send("🏆 4hydra brute-force complete.".into());
+    let _ = tx.send("[FINISH] 4hydra brute-force complete.".into());
     Ok(())
 }

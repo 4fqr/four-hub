@@ -24,7 +24,7 @@ pub async fn run_4nmap(target: String, ports: Vec<u16>, threads: usize, timeout_
     };
 
     let _ = tx.send(format!("[PROGRESS] 2%"));
-    let _ = tx.send(format!("🪐 4nmap Architect Edition starting on {}", target));
+    let _ = tx.send(format!("[INFO] 4nmap Architect Edition starting on {}", target));
 
 
     let os_guess = match TcpStream::connect_timeout(&SocketAddr::new(addr, 80), Duration::from_millis(1000))
@@ -39,7 +39,7 @@ pub async fn run_4nmap(target: String, ports: Vec<u16>, threads: usize, timeout_
         }
         Err(_) => "Unknown OS (No response on 80/22)".into(),
     };
-    let _ = tx.send(format!("🛡️ Fingerprint: {}", os_guess));
+    let _ = tx.send(format!("[INFO] Fingerprint: {}", os_guess));
     let _ = tx.send(format!("[PROGRESS] 5%"));
 
 
@@ -59,7 +59,7 @@ pub async fn run_4nmap(target: String, ports: Vec<u16>, threads: usize, timeout_
     let timeout_dur = Duration::from_millis(timeout_ms);
     let (res_tx, mut res_rx) = mpsc::channel(100);
 
-    let _ = tx.send(format!("🔍 Phase 1: High-speed Parallel Scan ({} threads)...", threads));
+    let _ = tx.send(format!("[INFO] Phase 1: High-speed Parallel Scan ({} threads)...", threads));
 
 
     for i in 0..threads {
@@ -96,7 +96,7 @@ pub async fn run_4nmap(target: String, ports: Vec<u16>, threads: usize, timeout_
     for h in handles { let _ = h.await; }
     
     let _ = tx.send(format!("[PROGRESS] 50%"));
-    let _ = tx.send(format!("✨ Phase 2: Architect-Level Fingerprinting ({} open ports)...", open_ports.len()));
+    let _ = tx.send(format!("[INFO] Phase 2: Architect-Level Fingerprinting ({} open ports)...", open_ports.len()));
 
     let mut current_p = 50.0;
     let p_step = 45.0 / open_ports.len().max(1) as f64;
@@ -135,7 +135,7 @@ pub async fn run_4nmap(target: String, ports: Vec<u16>, threads: usize, timeout_
     }
 
     let _ = tx.send(format!("[PROGRESS] 100%"));
-    let _ = tx.send("🏆 4nmap Architect Edition: Operation Complete.".into());
+    let _ = tx.send("[FINISH] 4nmap Architect Edition: Operation Complete.".into());
     Ok(())
 }
 
