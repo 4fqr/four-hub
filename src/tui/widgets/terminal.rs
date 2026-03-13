@@ -36,7 +36,7 @@ fn render_output(f: &mut Frame, area: Rect, state: &AppState) {
                 theme::style_error()
             } else if l.starts_with("✓") || l.starts_with("▶") || l.starts_with("[done]") {
                 theme::style_success()
-            } else if l.starts_with("[warn") || l.starts_with("WARNING") {
+            } else if l.starts_with("[warn]") || l.starts_with("WARNING") {
                 theme::style_warning()
             } else {
                 theme::style_normal()

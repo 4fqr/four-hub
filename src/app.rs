@@ -618,11 +618,11 @@ impl Application {
                         if let Some(p_idx) = self.state.selected_port {
                             if let Some(host_idx) = self.state.selected_host {
                                 if let (Some(h), Some(p)) = (self.state.hosts.get(host_idx), self.state.ports.get(p_idx)) {
-                                    format!("{}:{}", h.ip, p.port)
+                                    format!("{}:{}", h.address, p.port)
                                 } else { self.state.current_target.clone() }
                             } else { self.state.current_target.clone() }
                         } else if let Some(h_idx) = self.state.selected_host {
-                             if let Some(h) = self.state.hosts.get(h_idx) { h.ip.clone() }
+                             if let Some(h) = self.state.hosts.get(h_idx) { h.address.clone() }
                              else { self.state.current_target.clone() }
                         } else { self.state.current_target.clone() }
                     } else { self.state.current_target.clone() };

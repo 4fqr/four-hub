@@ -41,7 +41,7 @@ static RE_FFUF_HIT: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#""url"\s*:\s*"([^"]+)"\s*,\s*"status"\s*:\s*(\d+)"#).unwrap()
 });
 static RE_ENUM4LINUX_SHARE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"
+    Regex::new(r"//(\S+)/(\S+)").unwrap()
 });
 static RE_CME_CRED: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\[\+\]\s+(\S+)\s+\d+\s+\S+\s+(\S+):(\S+)\b").unwrap()

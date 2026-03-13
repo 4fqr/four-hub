@@ -83,7 +83,7 @@ log "Building Four-Hub binary..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
-cargo install --path . --force 2>&1 | tail -n 5
+cargo install --path . --force
 
 if [ -f "$HOME/.cargo/bin/four-hub" ]; then
     ln -sf "$HOME/.cargo/bin/four-hub" /usr/local/bin/four-hub
