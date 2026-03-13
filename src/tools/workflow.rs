@@ -44,7 +44,7 @@ impl Workflow {
                             let ex = Arc::clone(executor);
                             let tgt = target.to_string();
                             handles.push(tokio::spawn(async move {
-                                ex.launch(&spec, tgt).await
+                                ex.launch(&spec, tgt, String::new()).await
                             }));
                         }
                     }
@@ -57,7 +57,7 @@ impl Workflow {
                 Concurrency::Sequential => {
                     for tool_name in &stage.tools {
                         if let Some(spec) = registry.find(tool_name) {
-                            match executor.launch(&spec, target.to_string()).await {
+                            match executor.launch(&spec, target.to_string(), String::new()).await {
                                 Ok(jid) => { all_job_ids.push(jid); }
                                 Err(e)  => { tracing::warn!(err=%e, tool=%tool_name, "workflow tool failed"); }
                             }
@@ -71,6 +71,9 @@ impl Workflow {
         Ok(all_job_ids)
     }
 }
+
+pub fn builtin_workflows() -> Vec<Workflow> {
+    vec![
         Workflow {
             name:        "4-Elite Offensive".into(),
             description: "Null-Suite proprietary pipeline (4nmap → 4gobuster → 4nikto)".into(),

@@ -368,13 +368,13 @@ fn builtin_tools() -> Vec<ToolSpec> {
         tool!("enum4linux-ng","enum4linux-ng","Modern enum4linux rewrite with JSON output",
               "SMB/AD", TargetType::IpOrDomain,       &["-A", "-oA", "/tmp/enum4linux", "{target}"], false),
         tool!("smbclient",  "smbclient",  "SMB share browser and file transfer",
-              "SMB/AD", TargetType::IpOrDomain,       &["-L", "
+              "SMB/AD", TargetType::IpOrDomain,       &["-L", "//{target}"], false),
         tool!("smbmap",     "smbmap",     "SMB share enumeration with permissions",
               "SMB/AD", TargetType::IpOrDomain,       &["-H", "{target}", "--no-banner"], false),
         tool!("rpcclient",  "rpcclient",  "Samba RPC client for AD enumeration",
               "SMB/AD", TargetType::IpOrDomain,       &["-U", "", "{target}", "-c", "enumdomusers"], false),
         tool!("ldapsearch", "ldapsearch", "LDAP directory search and enumeration",
-              "SMB/AD", TargetType::IpOrDomain,       &["-x", "-H", "ldap:
+              "SMB/AD", TargetType::IpOrDomain,       &["-x", "-H", "ldap://{target}"], false),
         tool!("bloodhound-py","bloodhound-python","BloodHound data ingestor for AD mapping",
               "SMB/AD", TargetType::IpOrDomain,       &["-d", "{target}", "-u", "user", "-p", "pass", "-c", "all", "-ns", "{target}"], false),
         tool!("kerbrute",   "kerbrute",   "Kerberos username enum and brute-force",
