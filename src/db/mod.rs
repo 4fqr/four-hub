@@ -31,7 +31,7 @@ pub struct Port {
     pub banner:   Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Finding {
     pub id:          String,
     pub host_id:     Option<String>,
@@ -46,8 +46,8 @@ pub struct Finding {
     pub created_at:  DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Severity { Critical, High, Medium, Low, Info }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum Severity { #[default] Info, Critical, High, Medium, Low }
 
 impl Severity {
     pub fn as_str(self) -> &'static str {

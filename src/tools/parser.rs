@@ -143,7 +143,7 @@ pub fn parse_line(spec: &ToolSpec, line: &str, target: &str) -> Vec<ParsedRecord
     }
 }
 
-fn finding(tool: &str, title: &str, description: &str, sev: Severity, evidence: &str) -> ParsedRecord {
+fn finding(tool: &str, title: &str, description: &str, sev: Severity, host: &str, evidence: &str) -> ParsedRecord {
     ParsedRecord::Finding(Finding {
         id:          Uuid::new_v4().to_string(),
         host_id:     None,
@@ -152,7 +152,9 @@ fn finding(tool: &str, title: &str, description: &str, sev: Severity, evidence: 
         title:       title.to_string(),
         description: description.to_string(),
         severity:    sev,
+        host:        host.to_string(),
         evidence:    Some(evidence.to_string()),
+        metadata:    None,
         created_at:  Utc::now(),
     })
 }
@@ -588,11 +590,17 @@ pub fn parse_nmap_xml(xml_path: &str, _target: &str) -> Vec<ParsedRecord> {
         if line.starts_with("<osmatch ") {
             if let Some(name) = attr(line, "name") {
                 out.push(ParsedRecord::Finding(Finding {
-                    id: Uuid::new_v4().to_string(), host_id: Some(current_hid.clone()),
-                    port_id: None, tool: "nmap".into(),
+                    id: Uuid::new_v4().to_string(), 
+                    host_id: Some(current_hid.clone()),
+                    port_id: None, 
+                    tool: "nmap".into(),
                     title: format!("OS: {name} @ {}", current_ip),
-                    description: format!("Nmap OS: {name}"), severity: Severity::Info,
-                    evidence: Some(line.to_string()), created_at: Utc::now(),
+                    description: format!("Nmap OS: {name}"), 
+                    severity: Severity::Info,
+                    host: current_ip.clone(),
+                    evidence: Some(line.to_string()), 
+                    metadata: None,
+                    created_at: Utc::now(),
                 }));
             }
         }
@@ -637,15 +645,22 @@ fn parse_4nmap(line: &str, target: &str) -> Vec<ParsedRecord> {
         let pnum = &caps[1];
         let desc = &caps[2];
         out.push(ParsedRecord::Finding(Finding {
-            id: Uuid::new_v4().to_string(), host_id: None, port_id: None,
-            tool: "4nmap".into(), title: format!("Vuln on Port {}", pnum),
-            description: desc.to_string(), severity: Severity::High,
-            evidence: Some(line.to_string()), created_at: Utc::now(),
+            id: Uuid::new_v4().to_string(), 
+            host_id: None, 
+            port_id: None,
+            tool: "4nmap".into(), 
+            title: format!("Vuln on Port {}", pnum),
+            description: desc.to_string(), 
+            severity: Severity::High,
+            host: String::new(), // To be patched by orchestrator if possible
+            evidence: Some(line.to_string()), 
+            metadata: None,
+            created_at: Utc::now(),
         }));
     }
     if let Some(caps) = RE_4NMAP_OS.captures(line) {
         let os = caps[1].to_string();
-        out.push(finding("4nmap", "OS Fingerprint", &format!("Detected: {os}"), Severity::Info, line));
+        out.push(finding("4nmap", "OS Fingerprint", &format!("Detected: {os}"), Severity::Info, "", line));
     }
     out
 }
@@ -703,9 +718,12 @@ fn parse_4nikto(line: &str, _target: &str) -> Vec<ParsedRecord> {
             description: format!("Discovered via 4nikto scan"),
             severity: Severity::High,
             tool: "4nikto".into(),
-            host: url,
+            host: url.clone(),
             created_at: Utc::now(),
             metadata: None,
+            evidence: Some(url),
+            host_id: None,
+            port_id: None,
         }));
     }
     results

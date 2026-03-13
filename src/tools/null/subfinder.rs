@@ -1,5 +1,5 @@
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use tokio::sync::mpsc;
 use std::time::Duration;
 use std::collections::HashSet;
